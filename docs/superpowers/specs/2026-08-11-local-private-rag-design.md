@@ -1,267 +1,186 @@
-# Local Private RAG Design
+# 本地私人 RAG 设计
 
-**Status:** Approved design
+**状态：** 设计已确认
 
-**Date:** 2026-08-11
+**日期：** 2026-08-11
 
-**Scope:** First production increment of per-user retrieval-augmented generation
+**范围：** 按用户隔离的 RAG 第一版生产实现
 
-## 1. Summary
+## 1. 摘要
 
-Add an optional, fully local RAG subsystem to nanobot. Users can explicitly add supported
-documents from any channel by sending `/rag add` with attachments, then query their private
-knowledge base with `/rag ask <question>` or allow the agent to call a
-`search_knowledge_base` tool. Embedding and reranking run locally. The system combines
-Chinese/English-aware lexical retrieval with dense retrieval, merges the candidates using
-Reciprocal Rank Fusion (RRF), reranks them locally, and returns evidence with citations.
+为 nanobot 增加一套可选、完全本地化的 RAG 子系统。用户可以在任意支持的渠道私聊中，通过 `/rag add` 明确把附件加入私人知识库；之后既可以使用 `/rag ask <问题>` 强制查询，也可以让 Agent 自主调用 `search_knowledge_base` 工具。
 
-The first increment prioritizes privacy, predictable resource use, citations, and strict user
-isolation. It does not include OCR, shared libraries, cross-channel identity linking, remote
-embedding, remote reranking, or advanced retrieval strategies such as GraphRAG.
+Embedding 和 Reranker 全部在本机运行。检索流程组合中英文 BM25 与 Dense 检索，使用 RRF 融合候选，再通过本地 Cross-Encoder 重排，最终返回带来源位置的证据和引用。
 
-## 2. Approved Product Decisions
+第一版优先保证隐私、资源可控、引用准确和严格用户隔离，不包含 OCR、共享知识库、跨渠道身份关联、远程 Embedding、远程 Reranker、GraphRAG 等高级检索策略。
 
-- A user's RAG identity is the tuple `(channel, sender_id)`.
-- The same person on Telegram, Discord, and WebUI is three independent users.
-- Knowledge bases are private; there are no team, group, or public libraries.
-- Private RAG is available only in conversations that the channel can positively identify as a
-  direct/private conversation. Unknown conversation types fail closed.
-- All supported channels can accept RAG uploads in private conversations.
-- An attachment enters the persistent knowledge base only when the message explicitly contains
-  `/rag add`. Ordinary attachments remain scoped to the current conversation turn.
-- `/rag ask <question>` forces retrieval. During ordinary conversation the agent may call
-  `search_knowledge_base` when it judges retrieval useful.
-- The default per-user quota is 1 GiB and is configurable by the system administrator.
-- Quota usage is the sum of original uploaded file sizes. Derived text, embeddings, and indexes
-  are internal system overhead and do not count against the user's quota.
-- Ingestion is asynchronous and persisted. Users can continue chatting and querying previously
-  ready documents while new documents are indexed.
-- Embedding and reranking are local-only in the first increment.
-- The default model pair is `intfloat/multilingual-e5-small` for embedding and
-  `BAAI/bge-reranker-base` for reranking.
-- CPU-only execution must work on Windows, macOS, and Linux. Compatible acceleration is selected
-  automatically when available and faster on the current machine.
-- The minimum language scope is Chinese, English, and mixed Chinese/English content and queries.
-- OCR is out of scope. Scanned PDFs, standalone images, and text inside embedded images are not
-  indexed.
-- The UI and chat channels receive RAG progress events so users do not interpret local inference
-  latency as a stalled agent.
+## 2. 已确认的产品决策
 
-## 3. Goals and Non-goals
+- RAG 用户身份为 `(channel, sender_id)`。
+- 同一个人在 Telegram、Discord 和 WebUI 中视为三个独立用户。
+- 只有私人知识库，不提供团队、群组或公共知识库。
+- 只有渠道能明确确认身份可信且当前为私聊时，才允许使用私人 RAG；未知会话类型失败即关闭。
+- 所有能够提供可信身份与私聊范围的渠道都支持上传。
+- 只有消息明确包含 `/rag add` 时，附件才持久进入知识库；普通附件只用于当前对话。
+- `/rag ask <问题>` 强制检索；普通对话由 Agent 决定是否调用 `search_knowledge_base`。
+- 每用户默认配额为 1 GiB，由系统配置控制。
+- 配额只统计上传原始文件大小；Chunk、Embedding、BM25 和向量索引不计入用户配额。
+- 入库异步且持久化。新文档处理中，旧的已就绪文档仍可查询。
+- 第一版 Embedding 与 Reranker 均只允许本地执行。
+- 默认模型组合为 `intfloat/multilingual-e5-small` 与 `BAAI/bge-reranker-base`。
+- Windows、macOS、Linux 必须支持 CPU-only；GPU、Apple Neural Engine 等只作为自动选择的可选加速。
+- 最低语言范围为中文、英文和中英混合内容。
+- 第一版不做 OCR；扫描版 PDF、图片和文档内嵌图片中的文字不入库。
+- WebUI 和聊天渠道必须展示 RAG 进度，避免用户误以为系统卡死。
 
-### Goals
+## 3. 目标与非目标
 
-1. Provide useful hybrid retrieval for private corpora approaching 1 GiB per user.
-2. Prevent cross-user and cross-channel retrieval by construction.
-3. Keep document parsing, chunking, embedding, lexical retrieval, vector retrieval, and
-   reranking on the host machine.
-4. Return provenance sufficient for the final answer to cite the source filename and location.
-5. Preserve responsiveness through background ingestion, query priority, bounded concurrency,
-   and progress events.
-6. Keep RAG optional so installations that do not enable it retain the current dependency and
-   runtime profile.
-7. Allow the model runtime to exploit Apple Silicon, NVIDIA GPUs, Intel acceleration, and
-   Windows GPUs without making any accelerator mandatory.
+### 目标
 
-### Non-goals
+1. 为接近每用户 1 GiB 的私人语料提供可靠 Hybrid 检索。
+2. 从设计上阻止跨用户和跨渠道检索。
+3. 文档解析、切片、Embedding、词法检索、向量检索和 Reranker 全部在本机运行。
+4. 让最终答案能够准确引用文件名及页码、标题、幻灯片、工作表或行号。
+5. 通过异步入库、查询优先、有界并发和进度事件保持响应性。
+6. RAG 保持可选，不启用时不改变 nanobot 基础安装和运行行为。
+7. 同一套运行接口可以利用 Apple Silicon、NVIDIA、Intel 和 Windows GPU 加速。
 
-- OCR, image retrieval, multimodal document retrieval, and handwritten text recognition.
-- Shared, group-owned, organization-wide, or public knowledge bases.
-- Linking identities across channels.
-- Remote embedding or remote reranking.
-- Automatically selecting a larger semantic model merely because faster hardware is present.
-- GraphRAG, RAPTOR, late interaction, query decomposition, or agentic multi-step retrieval.
-- A standalone vector database service.
-- Fine-tuning embedding or reranking models.
+### 非目标
 
-## 4. Architecture
+- OCR、图片检索、多模态文档检索和手写识别。
+- 共享、群组、组织级或公共知识库。
+- 跨渠道身份关联。
+- 远程 Embedding 或远程 Reranker。
+- 因硬件更强就自动切换到更大的语义模型。
+- GraphRAG、RAPTOR、Late Interaction、查询分解或 Agentic 多步检索。
+- 独立向量数据库服务。
+- 模型微调。
+
+## 4. 总体架构
 
 ```mermaid
 flowchart LR
-    C["Private chat channels"] --> CR["Command Router"]
+    C["各渠道私聊"] --> CR["Command Router"]
     CR --> RM["RAG Manager"]
-    AR["AgentRunner"] --> T["search_knowledge_base tool"]
+    AR["AgentRunner"] --> T["search_knowledge_base 工具"]
     T --> RM
 
-    RM --> Q["Quota and job coordinator"]
-    RM --> I["Ingestion service"]
-    RM --> R["Hybrid retriever"]
+    RM --> Q["配额与任务协调"]
+    RM --> I["入库服务"]
+    RM --> R["Hybrid Retriever"]
 
-    I --> P["Bounded document parser"]
-    P --> CH["Structure-aware chunker"]
-    CH --> E["Local embedding runtime"]
-    E --> S["Per-principal store"]
+    I --> P["有界文档解析"]
+    P --> CH["结构化切片"]
+    CH --> E["本地 Embedding"]
+    E --> S["按主体隔离存储"]
 
     R --> B["SQLite FTS5 / BM25"]
     R --> V["USearch HNSW"]
-    B --> F["RRF fusion"]
+    B --> F["RRF 融合"]
     V --> F
-    F --> RR["Local cross-encoder reranker"]
-    RR --> X["Evidence and citations"]
+    F --> RR["本地 Reranker"]
+    RR --> X["证据与引用"]
 
-    H["Hardware-aware runtime"] --> E
+    H["硬件感知运行时"] --> E
     H --> RR
-    RM --> EV["Typed RAG progress events"]
+    RM --> EV["类型化 RAG 进度事件"]
 ```
 
-### 4.1 Component Boundaries
+### 4.1 组件边界
 
-`RagManager` is the application-facing facade. It receives an authenticated principal context,
-never a caller-supplied principal identifier. It owns quota decisions, document lifecycle,
-command behavior, job submission, retrieval orchestration, and status reporting.
+- `RagManager`：应用层统一入口，负责身份策略、配额、文档生命周期、任务提交、查询编排和状态报告。
+- `RagIngestionService`：负责校验、解析、切片、Embedding、索引构建和原子发布，不包含渠道逻辑。
+- `RagRetriever`：负责 BM25 与 Dense 召回、RRF 融合、去重、本地重排、证据阈值与结果成形，不生成最终自然语言答案。
+- `RagStore`：抽象文档、Chunk、任务、配额、词法和向量检索；第一版使用每主体 SQLite + USearch HNSW。
+- `LocalModelRuntime`：负责模型 Manifest、Tokenizer、ONNX Session、批处理、Pooling、归一化和分数。
+- `HardwareAwareRuntime`：负责硬件探测、候选实测、Profile 缓存和安全回退。
+- `RagEventPublisher`：发布渠道无关的类型化事件，具体展示由渠道 Adapter 负责。
 
-`RagIngestionService` owns validation, parsing, chunking, embedding, index construction, and
-atomic publication. It has no channel-specific logic.
+### 4.2 项目集成点
 
-`RagRetriever` owns lexical and dense candidate retrieval, RRF fusion, deduplication, local
-reranking, evidence thresholds, and result shaping. It does not build prompts or generate final
-answers.
+- 通过现有 Command Router 注册 RAG 命令。
+- 通过现有工具发现机制注册 `search_knowledge_base`。
+- 复用 MessageBus 和类型化出站事件。
+- 复用并扩展 `nanobot.utils.document`，不增加第二套解析器。
+- 在现有 Pydantic 配置中增加 RAG 配置组。
+- 推理与向量依赖放入可选 `rag` Extra，平台加速依赖单独安装。
 
-`RagStore` is an interface covering documents, chunks, jobs, quota reservations, lexical search,
-and vector search. The first backend is an embedded per-principal SQLite database plus a
-per-principal USearch HNSW index.
+## 5. 身份、会话范围与授权
 
-`LocalModelRuntime` owns model manifests, tokenization, ONNX sessions, batching, pooling,
-normalization, reranking scores, and model cache locking.
+服务端把 `channel + "\0" + sender_id` 作为主体规范值，使用带领域分隔的密码学哈希生成目录名。命令参数、工具参数、文件名和客户端 Metadata 都不能指定主体。
 
-`HardwareAwareRuntime` probes installed execution providers, benchmarks safe candidates, selects
-profiles, caches results, and performs fallback. It never changes access control or document
-state.
+每次 RAG 操作都要求：
 
-`RagEventPublisher` emits typed, channel-agnostic lifecycle events. Rendering and message-edit
-behavior remain the responsibility of existing channel adapters.
+- 渠道明确报告当前为私聊。
+- 渠道提供稳定、经过认证的 `sender_id`。
 
-### 4.2 Integration Points
+群聊、公开会话和未知会话类型全部拒绝。空值、共享占位符或客户端可伪造的发送者 ID 也全部拒绝。Session Key、Chat ID、Thread ID 和显示名不能替代主体身份。
 
-- Add RAG command handlers through the existing command router.
-- Add `search_knowledge_base` through the existing tool discovery mechanism.
-- Reuse the message bus and typed outbound event path for notifications.
-- Reuse and extend `nanobot.utils.document` parsers instead of adding a second parser stack.
-- Store RAG configuration in the existing Pydantic configuration schema.
-- Package inference and vector dependencies as an optional `rag` installation extra. Optional
-  platform acceleration packages are separate from the portable CPU baseline.
+`search_knowledge_base` 的 Schema 不包含主体字段。AgentLoop 在验证当前消息后注入不可变的请求上下文。每个主体使用独立存储和向量索引，不依赖元数据过滤保证隔离。
 
-## 5. Identity, Conversation Scope, and Authorization
-
-The server derives the principal key as `channel + "\0" + sender_id`, then hashes it with a
-domain-separated cryptographic hash before using it as a directory name. The original identity
-tuple is never accepted from slash-command arguments, model tool arguments, filenames, or client
-metadata.
-
-Every RAG operation requires a channel capability result of `private`. `group`, `public`, and
-`unknown` are rejected. WebUI personal conversations are private. A channel that cannot reliably
-classify the conversation must not expose private RAG until its adapter implements that
-capability.
-
-The channel must also supply a stable, authenticated sender identifier. A shared placeholder,
-empty sender ID, or client-controlled ID without channel authentication is insufficient; that
-adapter fails closed for RAG until it can provide a trustworthy identity. Session keys, chat IDs,
-thread IDs, and display names are not substitutes for the principal identity.
-
-`search_knowledge_base` receives only the query and retrieval options exposed by policy. The
-agent loop injects the current principal and conversation scope after validating the tool call.
-Attempts by an LLM to specify another principal are ignored or rejected before storage access.
-
-This prevents storage leakage, but it is also necessary because an answer generated from a
-private library in a public channel would itself disclose private evidence.
-
-## 6. Commands and Tool Contract
+## 6. 命令与工具契约
 
 ### `/rag add`
 
-Requires one or more supported attachments in a private conversation. It validates the complete
-batch and reserves quota atomically. On success it returns job identifiers immediately and does
-not wait for parsing or embedding. A batch is rejected as a whole when any member is invalid or
-the complete batch would exceed quota.
+只能在私聊中使用且必须附带支持的文件。系统先对完整批次做格式、大小、配额和安全校验，再一次性预占配额。成功后立即返回 Job ID，不等待解析和 Embedding。批次中任一文件无效时整批拒绝。
 
 ### `/rag status [job_id]`
 
-Without a job ID, shows quota usage, active and recent jobs, ready document count, selected local
-runtime profiles, and whether acceleration is active. With a job ID, shows its persisted phase,
-attempt count, and safe error description.
+不带 Job ID 时展示配额、活跃与近期任务、就绪文档数量、当前推理 Profile 和是否启用加速。带 Job ID 时展示持久化阶段、尝试次数和经过清理的错误。
 
 ### `/rag list`
 
-Lists ready and processing documents with stable `document_id`, original filename, original size,
-status, and creation time. It does not expose host filesystem paths.
+列出当前主体的文档 ID、文件名、原始大小、状态和创建时间，不展示主机路径。
 
 ### `/rag delete <document_id>`
 
-Immediately marks the document unavailable for retrieval, then removes its original file,
-chunks, lexical rows, and vectors under a per-principal write lock. Quota is released when cleanup
-commits. A failed cleanup stays invisible to retrieval and is retried safely.
+先把文档标记为不可检索，再在后台删除原始文件、Chunk、FTS 和向量。清理持久完成后释放配额。清理失败时保持不可见并安全重试。
 
-### `/rag ask <question>`
+### `/rag ask <问题>`
 
-Forces knowledge-base retrieval. If no evidence passes the relevance policy, it explicitly says
-that the private knowledge base did not contain sufficient support. It does not silently fall
-back to another principal, a public corpus, or current-turn attachments.
+强制检索私人知识库。若没有证据达到相关性要求，明确说明知识库没有提供足够依据，不搜索其他用户、公共语料或普通附件。
 
 ### `search_knowledge_base`
 
-Allows the agent to retrieve during an ordinary turn. Results include evidence text, filename,
-document ID, structured location, and relevance metadata. The tool returns an explicit empty
-result with a reason when retrieval is unavailable or insufficient.
+由 Agent 在普通对话中自主调用。返回证据文本、文件名、文档 ID、结构化位置和诊断信息；无结果时返回明确原因。
 
-## 7. Supported Files and Parsing
+## 7. 文件格式与解析
 
-The first increment supports:
+第一版支持：
 
-- `.pdf` with extractable text;
-- `.docx`;
-- `.xlsx`;
-- `.pptx`;
-- `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.htm`, `.log`, `.yaml`, `.yml`,
-  `.toml`, `.ini`, and `.cfg`.
+- 包含可提取文本的 `.pdf`。
+- `.docx`、`.xlsx`、`.pptx`。
+- `.txt`、`.md`、`.csv`、`.json`、`.xml`、`.html`、`.htm`、`.log`、`.yaml`、`.yml`、`.toml`、`.ini`、`.cfg`。
 
-Legacy binary Office formats such as `.doc` and `.xls`, encrypted documents, images, scanned
-PDFs, and text contained only in embedded images are unsupported.
+不支持 `.doc`、`.xls` 等旧二进制 Office 格式、加密文档、图片、扫描 PDF 和只存在于内嵌图片中的文字。
 
-Validation uses both the declared MIME type and inspected file characteristics where practical.
-Changing a filename extension must not bypass parser selection or safety checks. The portable
-defaults retain the existing 50 MiB single-file limit, 100-page PDF extraction limit, 200,000
-extracted-character bound, OOXML archive expansion bounds, and parser-specific structure bounds.
-Reaching a safety bound is reported explicitly; a document must not be silently marked fully
-indexed when only a prefix was accepted.
+默认沿用现有安全边界：单文件 50 MiB、PDF 最多 100 页、最多提取 200,000 字符，以及 OOXML 解压大小、成员数量、表格和内容流限制。达到限制必须明确失败或报告不完整，不能把被截断前缀标记为全文入库。
 
-Parsing runs in a bounded worker process with a timeout. A malformed or expensive document can
-fail its own job but cannot block the asyncio agent loop or leave an unbounded parser resident in
-the gateway process.
+解析在有界 Worker Process 中运行，具有墙钟超时。恶意或高成本文档只能使自己的任务失败，不能阻塞 AgentLoop。
 
-Location metadata is preserved as follows:
+来源位置：
 
-- PDF: one-based page number;
-- DOCX, HTML, and Markdown: heading path when available;
-- PPTX: one-based slide number;
-- XLSX: sheet name and row range;
-- text formats: one-based line range.
+- PDF：页码。
+- DOCX、HTML、Markdown：标题路径。
+- PPTX：幻灯片编号。
+- XLSX：工作表和行范围。
+- 文本格式：行号范围。
 
-## 8. Quota and Deduplication
+## 8. 配额与去重
 
-The default per-principal original-file quota is 1,073,741,824 bytes. The administrator can
-change the global default and later add per-principal overrides without changing the storage
-contract.
+默认每主体原始文件配额为 1,073,741,824 字节。系统可以修改默认值，并在未来增加主体级覆盖。
 
-Before accepting a batch, the system creates quota reservations in the same transaction used to
-create its jobs. This prevents concurrent `/rag add` requests from exceeding the limit. A
-reservation becomes committed usage when ingestion succeeds and is released when validation or
-ingestion permanently fails. Deletion releases committed usage only after durable cleanup.
+接受批次前，在创建任务的同一事务内写入配额预占，防止并发上传绕过限制。任务成功后预占转为已提交使用量；永久失败时释放；删除持久完成后释放。
 
-Each file is hashed with SHA-256 while being copied into managed storage:
+复制文件时流式计算 SHA-256：
 
-- Identical content already owned by the same principal is not stored or charged twice.
-- The same filename with different content creates a new document and stable document ID.
-- Content belonging to different principals is not physically deduplicated in the first
-  increment because cross-principal content-addressed storage complicates deletion and isolation.
+- 同一主体完全相同的内容不重复存储或计费。
+- 文件名相同但内容不同，创建新文档 ID。
+- 不做跨主体物理去重，以免共享 Blob 引用计数破坏删除与隔离语义。
 
-Derived storage is not charged to the user, but the system checks a configurable global RAG
-storage ceiling and minimum free-disk reserve before accepting work. Low disk space is a safe,
-user-visible rejection rather than an indexing failure after the original file has filled the
-disk.
+派生数据不计入用户配额，但受全局 RAG 存储上限和最小剩余磁盘保护。磁盘不足时在接收前安全拒绝。
 
-## 9. Storage Layout and Data Model
-
-The storage root contains a global model cache and independent principal roots:
+## 9. 存储布局与数据模型
 
 ```text
 rag/
@@ -274,52 +193,36 @@ rag/
       work/<job-id>/
 ```
 
-The per-principal SQLite database contains:
+每主体 SQLite 包含：
 
-- `documents`: document ID, safe display name, SHA-256, MIME, original bytes, status, timestamps,
-  error code, and active index generation;
-- `chunks`: integer vector key, document ID, ordinal, original text, token count, location JSON,
-  and embedding profile ID;
-- `chunks_fts`: FTS5 search material keyed to `chunks`;
-- `jobs`: operation, durable state, phase, attempts, timestamps, origin routing metadata, and safe
-  error details;
-- `quota_reservations`: job/document relationship, byte count, and reservation state;
-- `store_manifest`: schema version, active vector generation, and embedding profile signature.
+- `documents`：文档 ID、显示名、SHA-256、MIME、原始字节、状态、时间戳、错误码和代次关系。
+- `chunks`：整数向量键、文档 ID、顺序、原文、Token 数、位置 JSON 和 Profile ID。
+- `chunks_fts`：与 Chunk 关联的 FTS5 词法记录。
+- `jobs`：操作、状态、阶段、尝试次数、来源路由、安全错误和时间戳。
+- `quota_reservations`：任务/文档、字节和预占状态。
+- `store_manifest`：Schema 版本、活动向量代次和 Embedding Profile 签名。
 
-The vector index stores only vector keys and quantized vectors. Metadata and evidence text remain
-in SQLite. Each principal has an independent HNSW graph, so access control does not depend on an
-ANN post-filter.
+向量索引只保存向量键与量化向量，正文和元数据留在 SQLite。每主体使用独立 HNSW，权限不依赖 ANN Filter。
 
-Index publication writes a new immutable, versioned vector file. After all SQLite rows, FTS rows,
-and vectors are durable and validated, a short transaction updates the active generation in the
-manifest. Queries pin one active generation for their duration. Old vector files are reclaimed
-only after their readers release them. No implementation relies on replacing an open
-memory-mapped file, which keeps publication safe on Windows as well as POSIX systems.
+发布新索引时写入不可变的版本文件，验证 SQLite、FTS 和 Vector 数量与 Profile 后，通过短事务切换活动 Manifest。查询固定一个代次，旧文件只在读取者释放后回收，不替换已打开的内存映射文件。
 
-## 10. Chunking and Lexical Analysis
+## 10. 切片与词法分析
 
-The chunker targets 300-400 model tokens with approximately 50 tokens of overlap. Titles and
-location context count toward the `multilingual-e5-small` 512-token input limit. It prefers
-heading, paragraph, page, slide, sheet, and row boundaries before falling back to token windows.
-Oversized tables or paragraphs are split deterministically.
+Chunk 目标为 300–400 个 E5 Token，重叠约 50 Token。标题和位置上下文也计入 512 Token 上限。优先按结构边界切分，超大段落和表格再使用确定性 Token 窗口。
 
-Each embedding passage is prefixed according to the E5 model contract, and query text receives
-the corresponding query prefix. Embeddings use the model's documented pooling and L2
-normalization behavior.
+E5 Passage 使用 `passage:` 前缀，查询使用 `query:` 前缀，并遵循固定 Pooling 与 L2 归一化。
 
-SQLite FTS5's default Unicode tokenizer is not sufficient for high-quality Chinese lexical
-retrieval. The first backend therefore stores a separate normalized lexical representation:
+FTS5 默认 Unicode Tokenizer 对中文 BM25 不足，因此保存独立的规范化词法文本：
 
-- Chinese spans are segmented locally with a pinned Chinese tokenizer;
-- English spans are Unicode-normalized, case-folded, and word-tokenized;
-- mixed-language text preserves both token streams and exact numbers/identifiers;
-- the query passes through the same analyzer;
-- original evidence text is never replaced by the normalized lexical representation.
+- 中文使用固定版本本地分词器。
+- 英文做 Unicode 规范化、大小写折叠和单词切分。
+- 数字、文件名和标识符保留。
+- 中英混合文本保留两种 Token 流。
+- 查询与文档使用同一分析器。
 
-This keeps BM25 useful for Chinese terms, product codes, filenames, exact phrases, and mixed
-queries while dense retrieval handles semantic paraphrases.
+原始证据文本永远不被规范化词法文本替换。分析器和切片版本写入 Manifest，不兼容更新必须重建索引。
 
-## 11. Ingestion Flow and State Machine
+## 11. 入库状态机与流程
 
 ```text
 queued -> parsing -> chunking -> embedding -> indexing -> ready
@@ -327,320 +230,228 @@ queued -> parsing -> chunking -> embedding -> indexing -> ready
              +----------+-----------+-----------+-> failed
 ```
 
-1. Validate private-conversation scope, RAG enablement, attachments, formats, and batch limits.
-2. Reserve the complete batch's original bytes transactionally.
-3. Copy originals to managed temporary storage while computing content hashes.
-4. Resolve same-principal duplicates.
-5. Persist jobs and immediately emit `queued` events.
-6. Parse in a bounded worker and reject empty, OCR-only, unsafe, or truncated-as-complete output.
-7. Produce deterministic structure-aware chunks and citation locations.
-8. Generate embeddings in bounded batches using the selected local runtime.
-9. Build SQLite chunk/FTS rows and a staging vector generation.
-10. Validate counts, dimensions, profile signatures, and vector-to-chunk mappings.
-11. Atomically publish the ready generation and commit quota usage.
-12. Emit a terminal success event.
+1. 校验 RAG 启用状态、可信身份、私聊范围、附件、格式和批次限制。
+2. 在事务中预占完整批次原始字节。
+3. 把原始文件复制到托管临时目录并计算摘要。
+4. 处理同主体重复内容。
+5. 持久化任务并立即发布 queued 事件。
+6. 在 Worker Process 中解析，拒绝空文本、OCR-only、不安全或被当成完整内容的截断结果。
+7. 生成确定性的结构化 Chunk 和引用位置。
+8. 使用选中的本地 Profile 批量生成 Embedding。
+9. 构建 SQLite Chunk/FTS 和新向量代次。
+10. 校验数量、维度、Profile 签名和 Vector/Chunk 映射。
+11. 原子发布就绪代次并提交配额。
+12. 发布最终成功事件。
 
-Transient failures such as a temporary model-cache lock are retried at most twice with backoff.
-Permanent validation failures are not retried. Restart recovery resumes from the most recent
-safe durable phase; a phase that cannot be resumed cleans its staging outputs and restarts that
-phase.
+临时错误最多重试两次；永久校验错误不重试。重启后从最近的安全持久阶段恢复，无法续跑的阶段清理后重做。只有 ready 文档可检索。
 
-Only `ready` documents in an active generation are retrievable. Existing ready documents remain
-available while new jobs run.
+## 12. 检索流程
 
-## 12. Retrieval Flow
+1. 校验私聊范围，并由服务端生成主体。
+2. 在昂贵推理前发布 `query_started`。
+3. 本地生成查询 Embedding。
+4. 使用 FTS5/BM25 召回 40 条词法候选。
+5. 使用当前主体 USearch 索引召回 40 条 Dense 候选。
+6. 使用 RRF 融合并按 Chunk Key 去重。
+7. 使用 `bge-reranker-base` 本地重排前 30 条。
+8. 应用相关性和多样性策略，最多选择六条证据。
+9. 发布最终查询事件并把证据返回给调用者。
 
-1. Validate private scope and derive the principal server-side.
-2. Emit `query_started` before expensive inference.
-3. Embed the normalized query locally.
-4. Retrieve 40 lexical candidates using FTS5/BM25.
-5. Retrieve 40 dense candidates using the principal's USearch index.
-6. Merge and deduplicate the two ranked lists using RRF.
-7. Locally rerank the top 30 query/passage pairs with `bge-reranker-base`.
-8. Apply relevance and diversity policy and return at most six evidence chunks.
-9. Emit a terminal query event and provide the evidence to the caller.
+候选数量、最终证据数、RRF 参数和相关性策略均可配置。默认阈值不是随意常量，而是使用版本化评测集，在“无答案误命中率不超过 10%”的前提下选择 F1 最高阈值，并写入固定模型 Manifest。
 
-Candidate counts, final evidence count, RRF constant, and relevance policy are administrator
-configuration with the values above as defaults. The release does not guess a universal raw
-reranker threshold. Its pinned model manifest contains a threshold produced from the versioned
-evaluation set by selecting the highest-F1 threshold that still satisfies the approved maximum
-10% unanswerable false-positive rate. Runtime loading rejects a manifest without this calibrated
-value; administrators may override it explicitly.
+每条证据包含显示文件名、稳定文档 ID、页码/幻灯片/工作表行范围/标题路径/行号、准确证据文本和诊断分数。
 
-Every evidence item contains:
+没有候选通过阈值时返回类型化无证据结果。RAG 生成的事实必须引用证据，不得编造引用。远程主 LLM 只能看到最终证据，不能看到原始文件、全部 Chunk、Embedding 或重排候选。
 
-- original filename;
-- stable document ID;
-- page, slide, sheet/row range, heading path, or line range;
-- exact evidence text;
-- retrieval/reranking metadata used for diagnostics but not presented as calibrated probability.
+## 13. 本地模型与供应链
 
-If no candidate passes the relevance policy, the retriever returns a typed no-evidence outcome.
-The final-answer prompt requires claims based on RAG to cite evidence and prohibits fabricated
-citations. A remote main LLM receives only the final selected evidence, not originals, all chunks,
-embeddings, or reranker candidates.
+默认 Profile：
 
-## 13. Local Models and Model Supply Chain
+- Embedding：`intfloat/multilingual-e5-small`，384 维，最长 512 Token。
+- Reranker：`BAAI/bge-reranker-base`，中英文 Cross-Encoder。
+- 运行时：ONNX Runtime。
+- CPU 变体：验证通过后使用固定版本 INT8 ONNX。
 
-The portable profile uses:
+模型 Manifest 固定仓库 ID、不可变 Revision、必需文件、哈希、Tokenizer、Pooling、归一化、维度、精度、许可证、阈值和 Profile 签名。禁止任意模型代码，`trust_remote_code=False`。
 
-- Embedding: `intfloat/multilingual-e5-small`, 384 dimensions, maximum 512 tokens;
-- Reranker: `BAAI/bge-reranker-base`, Chinese/English cross-encoder;
-- Runtime: ONNX Runtime;
-- CPU model variants: vetted and pinned INT8 ONNX artifacts when validation passes.
+模型为系统共享资源，不计入用户配额。下载过程使用全局文件锁，先写临时路径，校验哈希后原子发布。管理员可以预取；自动下载默认开启。离线且缓存缺失时明确失败，文档不会进入 ready。
 
-The model manifest pins repository ID, immutable revision, required files, hashes, tokenizer
-behavior, pooling, normalization, dimensions, precision variant, and license metadata. Loading
-arbitrary model code is forbidden and `trust_remote_code` remains false.
+## 14. 硬件感知运行时
 
-Models are shared system assets and do not count toward user quota. A process-wide file lock
-protects download and cache population. Models may be prefetched administratively. With automatic
-download enabled by default, the first RAG job reports model preparation as a progress phase.
-Offline use with a missing model fails clearly and leaves the document unindexed.
+`rag.runtime.mode` 支持 `auto`、`cpu`、`cuda`、`coreml`、`openvino`、`directml`，默认 `auto`。CPU 路径始终存在；只有相应包、驱动、库和算子可用时才启用加速候选。
 
-## 14. Hardware-aware Runtime Selection
+候选包括：
 
-`rag.runtime.mode` accepts `auto`, `cpu`, `cuda`, `coreml`, `openvino`, or `directml`; `auto` is the
-default. The portable installation always includes a CPU path. Accelerated providers are used
-only when their package, drivers, required libraries, and model operators are available.
+- 所有平台的 ONNX CPU INT8。
+- Apple 硬件上的 CoreML。
+- NVIDIA GPU 上的 CUDA FP16。
+- Intel CPU/GPU/NPU 上的 OpenVINO。
+- Windows 兼容 GPU 上的 DirectML。
 
-Candidate providers include:
+首次使用：
 
-- ONNX CPU INT8 on all supported platforms;
-- CoreML `MLComputeUnits=ALL` on compatible Apple hardware;
-- CUDA FP16 on compatible NVIDIA GPUs;
-- OpenVINO on compatible Intel CPUs, GPUs, and NPUs when installed;
-- DirectML on compatible Windows systems when installed.
+1. 生成操作系统、架构、CPU、加速器、内存、Provider、模型和 Runtime 指纹。
+2. 只创建兼容候选。
+3. 对照 CPU 参考执行正确性校验。
+4. 执行预热和有界微基准。
+5. 分别测量单查询 Embedding、批量 Embedding 和 20–30 Pair Reranker。
+6. 排除输出无效、超出内存或不稳定的候选。
+7. 为各工作负载缓存最快通过者。
 
-Hardware names alone do not determine the winner. On first use, the runtime:
+默认总测试预算 60 秒，每候选 10 秒。Embedding 余弦相似度至少 0.999；Reranker 固定样例排序必须相同，归一化分数绝对差不超过 0.001。
 
-1. fingerprints the OS, architecture, CPU, visible accelerators, memory, installed providers,
-   model revision, and runtime version;
-2. creates only compatible candidates;
-3. runs correctness checks against a CPU reference within configured numeric tolerance;
-4. performs warmup and bounded microbenchmarks;
-5. separately measures embedding single-query latency, embedding batch throughput, and reranker
-   latency for a representative candidate set;
-6. rejects candidates that fail, exceed memory policy, or produce invalid outputs;
-7. selects and caches the fastest passing profile per workload.
+同一 ONNX 图只改变执行设备且数值兼容时无需重建。模型产物或量化变化会创建新 `embedding_profile_id`，后台构建新代次后原子切换。Reranker 不持久化输出，可以直接切换。
 
-The default first-run benchmark budget is 60 seconds total and 10 seconds per candidate. Embedding
-correctness requires cosine similarity of at least 0.999 against reference fixture vectors.
-Reranker correctness requires the same fixture ordering and an absolute normalized-score
-difference no greater than 0.001. A candidate outside these tolerances is not eligible, even when
-it is faster.
+初始化失败、算子不支持、显存不足或运行时崩溃时，候选进入当前指纹黑名单并依次回退，最终使用 CPU。回退发送一次提示，不让可恢复查询导致网关失败。
 
-Embedding ingestion and interactive embedding may use different sessions while preserving the
-same embedding profile. Reranking has its own selected session. Benchmarking is bounded and emits
-a progress event so first use does not appear stalled.
+## 15. RAG 进度事件与用户体验
 
-Changing only the execution device for the same ONNX graph is allowed without rebuilding when a
-numeric compatibility check passes. An embedding artifact or quantization change creates a new
-`embedding_profile_id`; the system rebuilds a new index generation in the background and switches
-atomically. Reranker profiles can switch immediately because reranker outputs are not persisted.
+新增 `RagProgressEvent`，字段至少包括：
 
-Initialization errors, unsupported operators, out-of-memory errors, and runtime failures
-blacklist that candidate for the current hardware fingerprint and fall back to the next tested
-profile, ultimately CPU. A fallback emits one user-visible event and does not fail an otherwise
-recoverable query.
+- `operation_id`。
+- `operation`：`ingest`、`query` 或 `delete`。
+- `phase`。
+- `state`：`queued`、`running`、`completed` 或 `failed`。
+- 可选 `current` 与 `total`。
+- 可选安全文档 ID 和文件名。
+- 安全错误码和显示消息。
+- 纯文本回退内容。
 
-## 15. Progress Events and User Experience
-
-Add a typed `RagProgressEvent` to the existing outbound event model with:
-
-- `operation_id`;
-- `operation`: `ingest`, `query`, or `delete`;
-- `phase`;
-- `state`: `queued`, `running`, `completed`, or `failed`;
-- optional `current` and `total`;
-- optional safe document ID and filename;
-- safe error code and display message;
-- plain-text fallback content.
-
-Query events normally progress through:
+查询事件示例：
 
 ```text
-Searching the RAG knowledge base...
-Merging keyword and semantic results...
-Selecting the most relevant knowledge...
-Query complete: N supporting sources found.
+正在从 RAG 知识库中查询……
+正在融合关键词与语义检索结果……
+正在筛选最相关的知识……
+查询完成，找到 N 条可引用证据。
 ```
 
-Ingestion events normally progress through queued, parsing, chunking, local embedding, indexing,
-and ready. Embedding progress is rate-limited and based on chunk batches, not one event per chunk.
+入库事件依次展示排队、解析、切片、本地 Embedding、索引和就绪。Embedding 进度按批次限频，不为每个 Chunk 发送事件。
 
-WebUI renders one updatable status component or compact timeline and folds it after completion.
-Channels that support message edits update a single progress message. Text-only channels emit
-only the query start plus exceptional terminal status, or ingestion queued plus final status, to
-avoid flooding chat. `/rag status` reads persistent state and is authoritative after reconnect or
-restart.
+- WebUI 更新同一个状态组件或紧凑时间线，完成后折叠。
+- 支持编辑消息的渠道更新同一条进度消息。
+- 纯文本渠道查询只发开始与异常结束，入库只发排队与最终结果。
+- `/rag status` 从持久化 Store 读取，是重连和重启后的权威状态。
 
-Notification is best effort. Delivery, rendering, or channel disconnection cannot roll back or
-fail a RAG operation. Events never contain document bodies or evidence chunks.
+通知为尽力交付，失败不影响任务。事件不包含文档正文、Chunk、证据、Embedding 或主机路径。
 
-## 16. Resource Scheduling
+## 16. 资源调度
 
-- The default ingestion concurrency is one embedding job per nanobot instance.
-- Interactive query embedding and reranking have priority over ingestion batches.
-- Parsing, embedding, and reranking use independent semaphores and timeouts.
-- CPU thread counts and accelerator memory limits are bounded by configuration and the selected
-  runtime profile.
-- A per-principal write lock serializes index publication and deletion. Reads pin a generation
-  and continue concurrently.
-- Model loading is shared and lazy; idle installations do not retain model memory.
-- Large background batches periodically yield so progress delivery, status commands, and the
-  AgentLoop remain responsive.
+- 默认同时执行一个后台 Embedding Job。
+- 交互式查询 Embedding 和 Reranker 优先于入库。
+- 解析、Embedding、Reranker 和索引发布使用独立 Semaphore 与超时。
+- CPU 线程和加速器内存受配置与选中 Profile 限制。
+- 同一主体索引发布和删除使用写锁；读取固定代次并并发继续。
+- 模型延迟加载并全局共享，空闲安装不常驻模型内存。
+- 大批次定期 Yield，保证进度、状态命令和 AgentLoop 响应。
 
-## 17. Security and Privacy Controls
+## 17. 安全与隐私
 
-- Physical per-principal stores supplement application authorization.
-- Principal and document paths use system-generated identifiers, never unsanitized user input.
-- Archive expansion, member count, member size, PDF streams, tables, pages, characters, process
-  time, and attachment counts are bounded.
-- Encrypted Office files and unsupported containers fail safely.
-- Extracted text and retrieved evidence are untrusted data. RAG prompt framing states that
-  instructions in documents are content, not system or tool instructions.
-- Tool output cannot grant tool permissions, modify principal scope, or invoke another tool.
-- Logs and events contain IDs, phases, sizes, and safe error codes, not document bodies or query
-  evidence by default.
-- Model artifacts are revision-pinned and hash-verified; executable remote model code is not
-  allowed.
-- Remote main LLMs receive only selected evidence required for the answer. Administrators must
-  understand that this final evidence still leaves the machine when a remote main LLM is used.
+- 应用授权之外，每主体使用物理独立 Store。
+- 主体和文档路径使用系统 ID，不拼接不可信输入。
+- 对压缩展开、成员数量、成员大小、PDF 流、表格、页数、字符、处理时间和附件数量设置上限。
+- 加密 Office 和不支持容器安全失败。
+- 提取文本与证据始终为不可信数据；文档指令不能控制主体、系统策略或工具权限。
+- 工具输出不能授予权限、修改主体或触发另一个工具。
+- 默认日志和事件只记录 ID、阶段、大小和安全错误，不记录正文和证据。
+- 模型产物固定 Revision 并校验哈希，禁止执行远程模型代码。
+- 主 LLM 为远程模型时，最终选中证据仍会离开本机，管理员必须了解这一边界。
 
-## 18. Errors and Recovery
+## 18. 错误与恢复
 
-User-facing errors are stable categories: disabled, non-private conversation, unsupported format,
-unsafe document, encrypted document, no extractable text, quota exceeded, low disk, model missing,
-model initialization failed, parse timeout, indexing failed, and internal retry exhausted.
-Internal exception text and host paths are logged locally but not returned to chat.
+用户可见错误使用稳定类别：功能禁用、非私聊、不支持格式、不安全文档、加密文档、无可提取文本、配额不足、磁盘不足、模型缺失、模型初始化失败、解析超时、索引失败和重试耗尽。内部异常和主机路径只写本地安全日志。
 
-Job phases are idempotent or use staging outputs. Startup recovery finds jobs not in terminal
-states, removes incomplete staging generations when necessary, and requeues work from the last
-safe boundary. It also reconciles quota reservations, document states, SQLite chunk counts, and
-the active vector manifest.
+任务阶段必须幂等或只写暂存产物。启动恢复会查找非终态任务，清理不完整代次，并协调配额预占、文档状态、SQLite Chunk 数量和活动向量 Manifest。
 
-If vector search is temporarily unavailable but lexical state is valid, ordinary retrieval may
-degrade to BM25 only and must disclose the degraded mode in tool metadata and progress. It must
-not silently claim that full hybrid retrieval ran. Corrupt or profile-incompatible indexes are
-kept unavailable until rebuilt.
+Dense 暂时不可用但词法索引有效时，可以依据配置使用 BM25-only 降级，但必须披露，不能声称执行了完整 Hybrid。损坏或 Profile 不兼容的向量索引在重建前保持不可用。
 
-## 19. Configuration Surface
+## 19. 配置范围
 
-The RAG configuration group includes at least:
+RAG 配置至少包含：
 
-- enablement and storage root;
-- default per-user original-byte quota and future principal overrides;
-- global RAG storage ceiling and minimum free-disk reserve;
-- file, page, character, archive, table, and parsing limits;
-- supported formats;
-- parser timeout and ingestion concurrency;
-- chunk target, overlap, and tokenizer versions;
-- embedding and reranker model manifests;
-- automatic model download and model cache location;
-- runtime mode, provider options, benchmark duration, numeric tolerance, thread limits, and memory
-  limits;
-- BM25, dense, fusion, reranker, evidence-count, and relevance settings;
-- progress-event throttling and history retention;
-- job retry and status retention policy.
+- 启用状态和存储根目录。
+- 默认用户配额和未来主体覆盖。
+- 全局 RAG 存储上限和最小剩余磁盘。
+- 文件、页数、字符、压缩包、表格和解析限制。
+- 支持格式、解析超时和入库并发。
+- Chunk 目标、重叠和 Tokenizer 版本。
+- Embedding/Reranker Manifest、缓存与自动下载。
+- Runtime 模式、Provider 参数、测试预算、数值容差、线程和内存限制。
+- BM25、Dense、RRF、Reranker、证据数量和相关性设置。
+- 事件限频、历史保留、任务重试和状态保留。
 
-Configuration validation rejects incompatible dimensions, missing immutable model revisions,
-invalid quota relationships, and forced runtime providers that are not installed.
+配置校验拒绝不兼容维度、缺少不可变 Revision、无效配额关系和强制但未安装的运行后端。
 
-## 20. Testing Strategy
+## 20. 测试与验收
 
-### Unit and Property Tests
+### 自动化测试
 
-- Principal derivation and path safety.
-- Private-conversation authorization and fail-closed unknown scope.
-- Atomic quota reservations under concurrent uploads.
-- Hash deduplication and same-name/different-content behavior.
-- Structure-aware chunking and location metadata for every supported format.
-- Chinese, English, and mixed lexical normalization.
-- RRF, deduplication, relevance policy, diversity, and citation shaping.
-- Job transitions, retry classification, recovery, and quota reconciliation.
-- Hardware profile signatures, benchmark selection, numeric validation, cache invalidation, and
-  fallback.
-- Event ordering, rate limiting, redaction, and notification failure isolation.
+- 身份派生、路径安全、私聊授权和未知类型失败即关闭。
+- 并发配额预占、重复内容、同名不同内容。
+- 所有支持格式的结构化位置与安全失败。
+- 中英文切片和词法规范化。
+- SQLite、FTS、USearch 代次、删除、重建和恢复。
+- 模型 Manifest、缓存、CPU 推理、硬件实测、数值门禁和回退。
+- RRF、相关性、多样性、引用和无证据结果。
+- Agent 工具不能控制主体。
+- 同 Sender ID 跨渠道隔离，不同 Sender ID 同渠道隔离。
+- 事件顺序、限频、脱敏和通知失败隔离。
+- 各渠道私聊、附件、编辑消息与纯文本展示契约。
+- WebUI 状态、时间线、错误和重连。
 
-### Integration Tests
+普通 CI 使用确定性 Fake Embedder/Reranker，不自动下载模型；另设可选真实 ONNX 集成测试。
 
-- SQLite/FTS and USearch consistency, atomic generation publication, deletion, and rebuild.
-- Real parser fixtures including malformed, encrypted, oversized, empty, and OCR-only files.
-- Agent tool calls cannot control principal scope.
-- Same sender ID on two channels resolves to independent stores.
-- Two senders on one channel cannot retrieve each other's chunks.
-- Query priority while a long embedding job runs.
-- Process termination during every ingestion phase followed by startup recovery.
-- Missing model, disk exhaustion, parse timeout, corrupt vector index, and accelerator failure.
-- Channel contract tests for private-scope detection, attachments, message editing, and text-only
-  progress behavior.
-- WebUI tests for status updates, timelines, terminal states, and reconnection.
+### 检索评测
 
-Most CI tests use deterministic fake embedding and reranking implementations. Real pinned ONNX
-model tests are optional integration jobs so normal CI does not download large artifacts.
+版本化评测集包含中文、英文、中英混合、精确标识符、语义改写和无答案问题。发布要求：
 
-### Retrieval Evaluation
+- 可回答问题 Recall@30 ≥ 90%。
+- 最终六条证据命中率 ≥ 80%。
+- 无答案误命中率 ≤ 10%。
+- 引用位置正确率 ≥ 95%。
+- 跨主体检索为 0。
+- Hybrid 综合表现不低于 BM25-only 与 Dense-only 中的较优者。
 
-Maintain a versioned fixture corpus and answer annotations containing Chinese, English, mixed
-queries, exact identifiers, semantic paraphrases, and unanswerable questions. The first release
-must meet:
+### 响应与平台验证
 
-- answerable-query Recall@30 of at least 90%;
-- relevant-evidence presence in the final six of at least 80%;
-- unanswerable false-positive rate no greater than 10%;
-- citation location accuracy of at least 95%;
-- zero cross-principal retrievals;
-- aggregate hybrid performance no worse than the better of BM25-only and dense-only baselines.
+- `/rag add` 只等待校验和预占，不等待解析与 Embedding。
+- 查询接受后 500 毫秒内发出开始提示。
+- 入库不阻塞普通对话和 `/rag status`。
+- 基准命令报告解析吞吐、Embedding 吞吐、索引大小、词法/向量延迟、Reranker 延迟、选中后端和回退历史。
+- Windows、macOS、Linux 都运行 CPU-only 真实模型冒烟测试。
+- 有条件时覆盖 Apple Silicon、NVIDIA、Intel/OpenVINO 和 Windows GPU。
 
-### Responsiveness and Platform Validation
+## 21. 发布与兼容性
 
-- `/rag add` returns after validation and reservation rather than waiting for parsing.
-- A query-start progress event is emitted within 500 ms of accepted retrieval work.
-- Ingestion does not block ordinary turns or `/rag status`.
-- A benchmark command reports parsing throughput, embedding throughput, index size, lexical and
-  vector latency, reranker latency, chosen provider, and fallback history.
-- CPU-only real-model smoke tests run on Windows, macOS, and Linux.
-- Apple Silicon, NVIDIA CUDA, Intel/OpenVINO, and Windows GPU paths receive platform-specific smoke
-  coverage when the relevant CI or release hardware is available.
+RAG 默认不启用，只有配置开启且可选依赖安装后才注册功能。现有渠道、工具、Session、附件和 Memory 行为保持不变。启用时创建新存储根，不迁移既有 Session 数据。
 
-## 21. Rollout and Compatibility
+先发布 CPU Profile，再按平台冒烟结果逐个启用加速 Profile。任何 Provider 失败都不能取消 CPU 兼容要求。
 
-RAG is disabled unless configured and its optional dependencies are installed. Existing channels,
-tools, sessions, attachments, and memory behavior remain unchanged. Enabling RAG creates a new
-storage root; no existing session data is migrated.
+后续只根据真实检索评测和失败案例增加 Contextual Retrieval、Late Chunking、查询改写、层次摘要等高级能力。
 
-The first release should expose the CPU profile first, then enable accelerated profiles behind
-the same runtime interface as their platform smoke tests pass. A provider failure never removes
-the CPU compatibility requirement.
+## 22. 主要风险与缓解措施
 
-Retrieval diagnostics and evaluation results should guide later improvements. Contextual
-retrieval, late chunking, query rewriting, hierarchical summaries, or other advanced techniques
-are added only in response to measured failure cases.
-
-## 22. Key Risks and Mitigations
-
-| Risk | Mitigation |
+| 风险 | 缓解措施 |
 | --- | --- |
-| Derived indexes exceed original-file quota | Global storage ceiling, free-disk reserve, vector quantization, and observable index size |
-| CPU ingestion is slow near 1 GiB | Asynchronous jobs, batching, one-job default, progress events, and optional hardware acceleration |
-| Chinese BM25 is ineffective with default FTS tokenization | Shared local Chinese/English lexical analyzer for both documents and queries |
-| ANN storage leaks across users through filtering mistakes | Independent per-principal vector indexes and databases |
-| Private evidence is posted into a group | RAG allowed only when the channel positively confirms a private conversation |
-| Model update invalidates vectors | Immutable revisions, hashes, embedding profile IDs, staged rebuilds, and atomic switch |
-| GPU exists but is slower or incompatible | Correctness-gated local microbenchmark and CPU fallback |
-| Document prompt injection influences the main LLM | Treat evidence as untrusted quoted data and prevent evidence from controlling tools or identity |
-| Malformed documents exhaust memory or CPU | Archive bounds, parser limits, worker-process isolation, timeouts, and explicit failure |
-| Progress events flood chat | Structured updates, edit-in-place where supported, deduplication, and throttling |
-| HNSW and SQLite diverge after a crash | Generation manifests, staging, validation, startup reconciliation, and rebuild path |
+| 派生索引超过原始文件配额 | 全局存储上限、剩余磁盘保护、向量量化和索引大小可观测 |
+| 纯 CPU 处理接近 1 GiB 很慢 | 异步任务、批处理、单任务默认并发、进度事件和可选硬件加速 |
+| 默认 FTS 分词导致中文 BM25 效果差 | 文档与查询共用固定版本中英文词法分析器 |
+| ANN Filter 错误导致跨用户泄漏 | 每主体独立数据库和向量索引 |
+| 私人证据被回答到群聊 | 只有明确确认的私聊允许 RAG |
+| 模型更新导致向量失效 | 不可变 Revision、哈希、Profile ID、后台重建和原子切换 |
+| 检测到 GPU 但更慢或不兼容 | 正确性门禁、本机微基准和 CPU 回退 |
+| 文档 Prompt Injection 影响主 LLM | 证据视为不可信引用，不能控制身份或工具 |
+| 恶意文档耗尽资源 | 解析限制、Worker Process、超时和明确失败 |
+| 进度消息刷屏 | 结构化更新、原消息编辑、去重与限频 |
+| SQLite 与 HNSW 崩溃后不一致 | 不可变代次、事务 Manifest、启动协调和重建 |
 
-## 23. Reference Model and Runtime Sources
+## 23. 模型与运行时参考资料
 
-- [Multilingual E5 Small model card](https://huggingface.co/intfloat/multilingual-e5-small)
-- [BGE Reranker Base model card](https://huggingface.co/BAAI/bge-reranker-base)
-- [USearch Python documentation](https://unum-cloud.github.io/USearch/python/index.html)
-- [ONNX Runtime execution providers](https://onnxruntime.ai/docs/execution-providers/)
-- [ONNX Runtime CoreML provider](https://onnxruntime.ai/docs/execution-providers/CoreML-ExecutionProvider.html)
-- [ONNX Runtime CUDA provider](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)
-- [ONNX Runtime OpenVINO provider](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html)
-- [ONNX Runtime DirectML provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
+- [Multilingual E5 Small 模型卡](https://huggingface.co/intfloat/multilingual-e5-small)
+- [BGE Reranker Base 模型卡](https://huggingface.co/BAAI/bge-reranker-base)
+- [USearch Python 文档](https://unum-cloud.github.io/USearch/python/index.html)
+- [ONNX Runtime Execution Provider 总览](https://onnxruntime.ai/docs/execution-providers/)
+- [ONNX Runtime CoreML Provider](https://onnxruntime.ai/docs/execution-providers/CoreML-ExecutionProvider.html)
+- [ONNX Runtime CUDA Provider](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)
+- [ONNX Runtime OpenVINO Provider](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html)
+- [ONNX Runtime DirectML Provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
