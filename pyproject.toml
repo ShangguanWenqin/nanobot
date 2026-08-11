@@ -86,6 +86,31 @@ pdf = [
     # Compatibility extra: PDF reading is bundled since v0.2.3.
     "pypdf>=5.0.0,<6.0.0",
 ]
+rag = [
+    # Portable CPU baseline. RAG code keeps these imports optional at runtime.
+    "huggingface-hub>=0.27.0,<2.0.0",
+    "jieba>=0.42.1,<1.0.0",
+    "numpy>=1.26.0,<3.0.0",
+    "onnxruntime>=1.20.0,<2.0.0",
+    "tokenizers>=0.21.0,<1.0.0",
+    "usearch>=2.16.0,<3.0.0",
+]
+rag-apple = [
+    # CoreML is considered only after the local correctness/latency benchmark.
+    "coremltools>=8.0,<10.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+rag-cuda = [
+    # Install instead of the CPU-only onnxruntime wheel on CUDA hosts.
+    "onnxruntime-gpu>=1.20.0,<2.0.0; sys_platform == 'linux' or sys_platform == 'win32'",
+]
+rag-openvino = [
+    # Install instead of the default onnxruntime wheel on supported Intel hosts.
+    "onnxruntime-openvino>=1.20.0,<2.0.0",
+]
+rag-directml = [
+    # DirectML is available only on Windows.
+    "onnxruntime-directml>=1.20.0,<2.0.0; sys_platform == 'win32'",
+]
 olostep = [
     "olostep>=0.1.0; python_version < '3.14'",
 ]

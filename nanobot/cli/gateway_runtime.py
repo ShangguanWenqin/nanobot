@@ -317,6 +317,7 @@ def _run_gateway(
     )
     from nanobot.providers.fallback_provider import FallbackProvider
     from nanobot.providers.image_generation import image_gen_provider_configs
+    from nanobot.rag.manager import RagAvailabilityStatus, create_rag_subsystem
     from nanobot.session.manager import SessionManager
     from nanobot.session.webui_turns import (
         WebuiTurnCoordinator,
@@ -354,6 +355,9 @@ def _run_gateway(
     sync_workspace_templates(config.workspace_path)
     bus = MessageBus()
     runtime_events = RuntimeEventBus()
+    rag_subsystem = create_rag_subsystem(config.rag)
+    if rag_subsystem.status is RagAvailabilityStatus.UNAVAILABLE:
+        console.print(f"[yellow]RAG unavailable: {rag_subsystem.message}[/yellow]")
     fallback_model_observer = build_webui_fallback_model_observer(bus)
 
     def _observe_fallback_models(snapshot: ProviderSnapshot) -> ProviderSnapshot:
@@ -840,6 +844,7 @@ def _run_gateway(
             console.print,
         )
         try:
+            await rag_subsystem.start()
             await cron.start()
             # Re-read once on first admission to close the watcher subscription window.
             agent.runtime_resolver.invalidate()
@@ -917,6 +922,9 @@ def _run_gateway(
                 if flushed:
                     logger.info("Shutdown: flushed {} session(s) to disk", flushed)
             finally:
-                restore_shutdown_handlers()
+                try:
+                    await rag_subsystem.stop()
+                finally:
+                    restore_shutdown_handlers()
 
     asyncio.run(run())
