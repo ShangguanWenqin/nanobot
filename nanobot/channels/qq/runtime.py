@@ -39,6 +39,7 @@ from pydantic import Field
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import qq_rag_capabilities
 from nanobot.config.schema import Base
 from nanobot.security.network import validate_url_target
 from nanobot.utils.logging_bridge import redirect_lib_logging
@@ -539,15 +540,18 @@ class QQChannel(BaseChannel):
             message = cast(Any, data)
             if is_group:
                 chat_id = cast(str, message.group_openid)
-                user_id = cast(str, message.author.member_openid)
+                raw_user_id = getattr(message.author, "member_openid", None)
                 chat_type = "group"
             else:
-                chat_id = str(
-                    getattr(message.author, "id", None)
-                    or getattr(message.author, "user_openid", "unknown")
+                raw_user_id = getattr(message.author, "id", None) or getattr(
+                    message.author, "user_openid", None
                 )
-                user_id = chat_id
+                chat_id = str(raw_user_id or "")
                 chat_type = "c2c"
+            if not isinstance(raw_user_id, (str, int)) or not str(raw_user_id).strip():
+                self.logger.warning("Dropping QQ message without a stable sender ID")
+                return
+            user_id = str(raw_user_id)
 
             content = str(message.content or "").strip()
 
@@ -613,6 +617,10 @@ class QQChannel(BaseChannel):
                     "message_id": message_id,
                     "attachments": att_meta,
                 },
+                capabilities=qq_rag_capabilities(
+                    is_group=is_group,
+                    user_id=user_id,
+                ),
                 is_dm=not is_group,
             )
         except Exception:

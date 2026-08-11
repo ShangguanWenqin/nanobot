@@ -20,6 +20,7 @@ from pydantic import Field
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import whatsapp_rag_capabilities
 from nanobot.config.paths import get_media_dir, get_runtime_subdir
 from nanobot.config.schema import Base
 from nanobot.security.network import PinnedDNSAsyncTransport
@@ -690,6 +691,10 @@ class WhatsAppChannel(BaseChannel):
                 media=[],
                 metadata=metadata,
                 is_dm=not is_group,
+                capabilities=whatsapp_rag_capabilities(
+                    is_group=is_group,
+                    user_id=sender_id,
+                ),
             )
             return
 
@@ -720,6 +725,10 @@ class WhatsAppChannel(BaseChannel):
             metadata=metadata,
             is_dm=not is_group,
             authorization_id=authorization_id,
+            capabilities=whatsapp_rag_capabilities(
+                is_group=is_group,
+                user_id=sender_id,
+            ),
         )
 
     def _group_allow_id(self, chat_jid: str) -> str | None:

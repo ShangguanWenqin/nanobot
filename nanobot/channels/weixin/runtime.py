@@ -35,6 +35,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import weixin_rag_capabilities
 from nanobot.config.paths import get_media_dir, get_runtime_subdir
 from nanobot.config.schema import Base
 
@@ -1378,6 +1379,7 @@ class WeixinChannel(BaseChannel):
             content=content,
             media=media_paths or None,
             metadata={"message_id": msg_id},
+            capabilities=weixin_rag_capabilities(from_user_id=from_user_id),
         )
 
     # ------------------------------------------------------------------

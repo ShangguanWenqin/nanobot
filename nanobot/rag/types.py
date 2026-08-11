@@ -8,6 +8,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import NewType
 
+from nanobot.bus.events import ConversationScope
+
 PrincipalId = NewType("PrincipalId", str)
 DocumentId = NewType("DocumentId", str)
 JobId = NewType("JobId", str)
@@ -16,13 +18,6 @@ ChunkKey = NewType("ChunkKey", int)
 VectorGenerationId = NewType("VectorGenerationId", str)
 EmbeddingProfileId = NewType("EmbeddingProfileId", str)
 RerankerProfileId = NewType("RerankerProfileId", str)
-
-
-class ConversationScope(StrEnum):
-    PRIVATE = "private"
-    GROUP = "group"
-    PUBLIC = "public"
-    UNKNOWN = "unknown"
 
 
 class DocumentStatus(StrEnum):

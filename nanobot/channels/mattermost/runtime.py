@@ -14,6 +14,7 @@ from pydantic import Field, model_validator
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import mattermost_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config_base import Base
 from nanobot.pairing import PAIRING_CODE_META_KEY, format_pairing_reply, generate_code, is_approved
@@ -234,7 +235,7 @@ class MattermostChannel(BaseChannel):
             return
 
         channel_type_code = data.get("channel_type", "")
-        channel_type = _CHANNEL_TYPES.get(channel_type_code, "public")
+        channel_type = _CHANNEL_TYPES.get(channel_type_code, "unknown")
         is_dm = channel_type == "dm"
 
         team_id = broadcast.get("team_id", "")
@@ -309,6 +310,10 @@ class MattermostChannel(BaseChannel):
             },
             session_key=session_key,
             is_dm=is_dm,
+            capabilities=mattermost_rag_capabilities(
+                channel_type,
+                user_id=str(sender_id),
+            ),
         )
 
     # Event: action ------------------------------------------------------------
@@ -336,6 +341,10 @@ class MattermostChannel(BaseChannel):
             chat_id=channel_id,
             content=value,
             metadata={"mattermost": {"channel_type": channel_type, "is_action": True}},
+            capabilities=mattermost_rag_capabilities(
+                channel_type,
+                user_id=str(sender_id),
+            ),
         )
 
     # Event: post_deleted ------------------------------------------------------

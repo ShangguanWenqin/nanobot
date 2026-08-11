@@ -26,6 +26,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import email_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 from nanobot.utils.helpers import safe_filename
@@ -183,6 +184,7 @@ class EmailChannel(BaseChannel):
                             content=item["content"],
                             media=item.get("media") or None,
                             metadata=item.get("metadata", {}),
+                            capabilities=email_rag_capabilities(),
                         )
                     except Exception:
                         self.logger.exception("Error delivering email from {}", sender)

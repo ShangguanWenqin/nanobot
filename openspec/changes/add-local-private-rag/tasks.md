@@ -7,12 +7,12 @@
 
 ## 2. 可信身份与私聊范围
 
-- [ ] 2.1 为稳定且经过认证的发送者身份，以及 `private/group/public/unknown` 会话类型编写契约测试，再扩展 Channel Base 能力 API。
-- [ ] 2.2 实现主体派生、带领域分隔的路径哈希、不可变请求上下文和失败即关闭授权，并覆盖主体覆盖攻击测试。
-- [ ] 2.3 为 Telegram、Discord、Slack 和 WebSocket/WebUI Adapter 实现并测试私聊类型与文档附件能力报告。
-- [ ] 2.4 为 Feishu、DingTalk、QQ 和 NapCat Adapter 实现并测试私聊类型与文档附件能力报告。
-- [ ] 2.5 为 Weixin、WeCom 和 MoChat Adapter 实现并测试私聊类型与文档附件能力报告。
-- [ ] 2.6 为 Matrix、Mattermost、Signal、WhatsApp、MS Teams 和 Email Adapter 实现并测试私聊类型与文档附件能力报告；无法提供可信私聊范围的渠道必须明确失败即关闭。
+- [x] 2.1 为稳定且经过认证的发送者身份，以及 `private/group/public/unknown` 会话类型编写契约测试，再扩展 Channel Base 能力 API。
+- [x] 2.2 实现主体派生、带领域分隔的路径哈希、不可变请求上下文和失败即关闭授权，并覆盖主体覆盖攻击测试。
+- [x] 2.3 为 Telegram、Discord、Slack 和 WebSocket/WebUI Adapter 实现并测试私聊类型与文档附件能力报告。
+- [x] 2.4 为 Feishu、DingTalk、QQ 和 NapCat Adapter 实现并测试私聊类型与文档附件能力报告。
+- [x] 2.5 为 Weixin、WeCom 和 MoChat Adapter 实现并测试私聊类型与文档附件能力报告。
+- [x] 2.6 为 Matrix、Mattermost、Signal、WhatsApp、MS Teams 和 Email Adapter 实现并测试私聊类型与文档附件能力报告；无法提供可信私聊范围的渠道必须明确失败即关闭。
 
 ## 3. 结构化且有界的文档解析
 

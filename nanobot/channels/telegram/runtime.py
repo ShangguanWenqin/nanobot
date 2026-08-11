@@ -33,6 +33,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import telegram_rag_capabilities
 from nanobot.command.builtin import build_help_text
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
@@ -1489,6 +1490,7 @@ class TelegramChannel(BaseChannel):
             chat_id=str(message.chat_id),
             content=content,
             metadata=self._build_message_metadata(message, user),
+            capabilities=telegram_rag_capabilities(message.chat.type, user_id=user.id),
             session_key=self._derive_topic_session_key(message),
             is_dm=message.chat.type == "private",
         )
@@ -1564,6 +1566,7 @@ class TelegramChannel(BaseChannel):
 
         str_chat_id = str(chat_id)
         metadata = self._build_message_metadata(message, user)
+        capabilities = telegram_rag_capabilities(message.chat.type, user_id=user.id)
         session_key = self._derive_topic_session_key(message)
 
         # Telegram media groups: buffer briefly, forward as one aggregated turn.
@@ -1574,6 +1577,7 @@ class TelegramChannel(BaseChannel):
                     "sender_id": sender_id, "chat_id": str_chat_id,
                     "contents": [], "media": [],
                     "metadata": metadata,
+                    "capabilities": capabilities,
                     "session_key": session_key,
                 }
                 self._start_typing(str_chat_id)
@@ -1597,6 +1601,7 @@ class TelegramChannel(BaseChannel):
             content=content,
             media=media_paths,
             metadata=metadata,
+            capabilities=capabilities,
             session_key=session_key,
         )
 
@@ -1611,6 +1616,7 @@ class TelegramChannel(BaseChannel):
                 sender_id=buf["sender_id"], chat_id=buf["chat_id"],
                 content=content, media=list(dict.fromkeys(buf["media"])),
                 metadata=buf["metadata"],
+                capabilities=buf["capabilities"],
                 session_key=buf.get("session_key"),
             )
         finally:
@@ -1780,4 +1786,9 @@ class TelegramChannel(BaseChannel):
                 "first_name": user.first_name,
                 "is_callback": True,
             },
+            capabilities=(
+                telegram_rag_capabilities(query_message.chat.type, user_id=user.id)
+                if isinstance(query_message, Message)
+                else None
+            ),
         )

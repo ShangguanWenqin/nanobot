@@ -17,6 +17,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import discord_rag_capabilities
 from nanobot.command.builtin import build_help_text
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
@@ -188,6 +189,10 @@ if DISCORD_AVAILABLE:
                 chat_id=str(channel_id),
                 content=command_text,
                 metadata=metadata,
+                capabilities=discord_rag_capabilities(
+                    is_dm=interaction.guild_id is None,
+                    user_id=sender_id,
+                ),
                 session_key=session_key,
             )
 
@@ -607,6 +612,10 @@ class DiscordChannel(BaseChannel):
                 content=full_content,
                 media=media_paths,
                 metadata=metadata,
+                capabilities=discord_rag_capabilities(
+                    is_dm=message.guild is None,
+                    user_id=sender_id,
+                ),
                 session_key=session_key,
                 is_dm=message.guild is None,
             )

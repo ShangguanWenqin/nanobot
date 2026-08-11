@@ -38,6 +38,7 @@ from pydantic import Field
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import msteams_rag_capabilities
 from nanobot.config.paths import get_workspace_path
 from nanobot.config.schema import Base
 
@@ -367,6 +368,10 @@ class MSTeamsChannel(BaseChannel):
                     "from_name": from_user.get("name"),
                 }
             },
+            capabilities=msteams_rag_capabilities(
+                conversation_type,
+                user_id=sender_id,
+            ),
         )
 
     def _sanitize_inbound_text(self, activity: dict[str, Any]) -> str:

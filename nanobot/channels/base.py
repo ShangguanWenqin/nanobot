@@ -8,7 +8,11 @@ from typing import Any, cast
 
 from loguru import logger
 
-from nanobot.bus.events import InboundMessage, OutboundMessage
+from nanobot.bus.events import (
+    InboundMessage,
+    InboundMessageCapabilities,
+    OutboundMessage,
+)
 from nanobot.bus.queue import MessageBus
 from nanobot.pairing import (
     PAIRING_CODE_META_KEY,
@@ -259,6 +263,7 @@ class BaseChannel(ABC):
         content: str,
         media: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        capabilities: InboundMessageCapabilities | None = None,
         session_key: str | None = None,
         is_dm: bool = False,
         authorization_id: str | None = None,
@@ -314,6 +319,7 @@ class BaseChannel(ABC):
             content=content,
             media=media or [],
             metadata=meta,
+            capabilities=capabilities or InboundMessageCapabilities(),
             session_key_override=session_key,
             require_existing_session=require_existing_session,
         )

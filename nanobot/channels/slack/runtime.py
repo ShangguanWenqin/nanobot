@@ -18,6 +18,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import slack_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 from nanobot.pairing import is_approved
@@ -537,6 +538,7 @@ class SlackChannel(BaseChannel):
                         "channel_type": channel_type,
                     },
                 },
+                capabilities=slack_rag_capabilities(channel_type, user_id=sender_id),
                 session_key=session_key,
             )
         except Exception:

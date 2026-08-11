@@ -22,6 +22,7 @@ from websockets.asyncio.client import connect as ws_connect
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import napcat_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 from nanobot.security.network import validate_url_target
@@ -298,6 +299,10 @@ class NapcatChannel(BaseChannel):
                 "nickname": nickname,
                 "reply_to": reply_to_id,
             },
+            capabilities=napcat_rag_capabilities(
+                message_type=message_type,
+                user_id=str(user_id),
+            ),
         )
 
     @staticmethod

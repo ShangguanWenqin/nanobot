@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -21,6 +22,41 @@ RUNTIME_CONTROL_IMAGE_GENERATION_RELOAD = "image_generation_reload"
 RUNTIME_CONTROL_SESSION_DISCARD = "session_discard"
 
 
+class ConversationScope(StrEnum):
+    """Channel-authenticated classification of a conversation audience."""
+
+    PRIVATE = "private"
+    GROUP = "group"
+    PUBLIC = "public"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class InboundMessageCapabilities:
+    """Trusted per-message facts reported by a channel adapter.
+
+    Defaults intentionally fail closed. A legacy ``is_dm`` hint or chat ID is
+    not sufficient to make private knowledge available.
+    """
+
+    conversation_scope: ConversationScope = ConversationScope.UNKNOWN
+    stable_authenticated_sender: bool = False
+    authenticated_sender_id: str | None = None
+    document_attachments: bool = False
+    message_editing: bool = False
+
+    def __post_init__(self) -> None:
+        sender_id = self.authenticated_sender_id
+        if sender_id is None:
+            return
+        if not self.stable_authenticated_sender:
+            raise ValueError(
+                "authenticated_sender_id requires stable_authenticated_sender"
+            )
+        if not sender_id or sender_id != sender_id.strip() or "\0" in sender_id:
+            raise ValueError("authenticated_sender_id must be a canonical non-empty value")
+
+
 @dataclass
 class InboundMessage:
     """Message received from a chat channel."""
@@ -32,6 +68,9 @@ class InboundMessage:
     timestamp: datetime = field(default_factory=datetime.now)
     media: list[str] = field(default_factory=list)  # Media URLs
     metadata: dict[str, Any] = field(default_factory=dict)  # Channel-specific data
+    capabilities: InboundMessageCapabilities = field(
+        default_factory=InboundMessageCapabilities
+    )
     session_key_override: str | None = None  # Optional override for thread-scoped sessions
     require_existing_session: bool = False
 

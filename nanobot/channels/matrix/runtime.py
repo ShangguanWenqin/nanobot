@@ -60,6 +60,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import matrix_rag_capabilities
 from nanobot.config.paths import get_data_dir, get_media_dir
 from nanobot.config.schema import Base
 from nanobot.utils.helpers import safe_filename
@@ -1172,6 +1173,10 @@ class MatrixChannel(BaseChannel):
                 sender_id=event.sender, chat_id=room.room_id,
                 content=event.body, metadata=self._base_metadata(room, event),
                 is_dm=self._is_direct_room(room),
+                capabilities=matrix_rag_capabilities(
+                    member_count=getattr(room, "member_count", None),
+                    user_id=event.sender,
+                ),
             )
         except Exception:
             await self._stop_typing_keepalive(room.room_id, clear_typing=True)
@@ -1210,6 +1215,10 @@ class MatrixChannel(BaseChannel):
                 media=[attachment["path"]] if attachment else [],
                 metadata=meta,
                 is_dm=self._is_direct_room(room),
+                capabilities=matrix_rag_capabilities(
+                    member_count=getattr(room, "member_count", None),
+                    user_id=event.sender,
+                ),
             )
         except Exception:
             await self._stop_typing_keepalive(room.room_id, clear_typing=True)

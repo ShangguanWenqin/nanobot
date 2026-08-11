@@ -39,6 +39,7 @@ from nanobot.channels.feishu.instances import (
     upsert_feishu_instance,
 )
 from nanobot.channels.feishu.websocket import get_feishu_ws_runner
+from nanobot.channels.private_rag import feishu_rag_capabilities
 from nanobot.command.router import normalize_command_text
 from nanobot.config.paths import get_media_dir
 from nanobot.pairing import clear_channel
@@ -2809,6 +2810,7 @@ class FeishuChannel(BaseChannel):
                     "root_id": root_id,
                     "thread_id": thread_id,
                 },
+                capabilities=feishu_rag_capabilities(chat_type, user_id=sender_id),
                 session_key=session_key,
                 is_dm=chat_type == "p2p",
             )

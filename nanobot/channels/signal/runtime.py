@@ -17,10 +17,11 @@ from typing import Any, TypedDict, cast
 import httpx
 from pydantic import Field, computed_field, field_validator
 
-from nanobot.bus.events import InboundMessage, OutboundMessage
+from nanobot.bus.events import InboundMessage, InboundMessageCapabilities, OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import signal_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 from nanobot.pairing import is_approved
@@ -432,6 +433,7 @@ class SignalChannel(BaseChannel):
         is_dm: bool = False,
         authorization_id: str | None = None,
         require_existing_session: bool = False,
+        capabilities: InboundMessageCapabilities | None = None,
     ) -> None:
         """Handle an inbound message whose policy has already been checked.
 
@@ -455,6 +457,7 @@ class SignalChannel(BaseChannel):
                 metadata=meta,
                 session_key_override=session_key,
                 require_existing_session=require_existing_session,
+                capabilities=capabilities or InboundMessageCapabilities(),
             )
         )
 
@@ -832,6 +835,10 @@ class SignalChannel(BaseChannel):
                     "group_id": group_id,
                 },
                 is_dm=not is_group_message,
+                capabilities=signal_rag_capabilities(
+                    is_group=is_group_message,
+                    user_id=sender_number,
+                ),
             )
         except Exception:
             await self._stop_typing(chat_id)

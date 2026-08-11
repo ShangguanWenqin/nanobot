@@ -36,6 +36,7 @@ from nanobot.bus.outbound_events import (
 )
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import websocket_rag_capabilities
 from nanobot.command.builtin import builtin_command_starts_agent_turn
 from nanobot.config.schema import Base
 from nanobot.runtime_context import (
@@ -1089,6 +1090,9 @@ class WebSocketChannel(BaseChannel):
                     content=content,
                     media=media_paths or None,
                     metadata=metadata,
+                    capabilities=websocket_rag_capabilities(
+                        trusted_webui=trusted_webui
+                    ),
                     is_dm=False,
                     session_key=(
                         temporary_policy.session_key

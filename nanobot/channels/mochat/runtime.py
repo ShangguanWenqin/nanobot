@@ -18,6 +18,7 @@ from pydantic import Field
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import mochat_rag_capabilities
 from nanobot.config.paths import get_runtime_subdir
 from nanobot.config.schema import Base
 
@@ -841,6 +842,11 @@ class MochatChannel(BaseChannel):
                 "target_kind": target_kind, "was_mentioned": was_mentioned,
                 "buffered_count": len(entries),
             },
+            capabilities=mochat_rag_capabilities(
+                target_kind=target_kind,
+                is_group=is_group,
+                user_id=last.author,
+            ),
         )
 
     async def _cancel_delay_timers(self) -> None:

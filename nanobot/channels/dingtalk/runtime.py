@@ -20,6 +20,7 @@ from pydantic import Field
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import dingtalk_rag_capabilities
 from nanobot.config.schema import Base
 from nanobot.security.network import validate_resolved_url, validate_url_target
 
@@ -193,6 +194,7 @@ class NanobotDingTalkHandler(_CallbackHandlerBase):
                     sender_name,
                     conversation_type,
                     conversation_id,
+                    file_paths,
                 )
             )
             self.channel._background_tasks.add(task)
@@ -795,6 +797,7 @@ class DingTalkChannel(BaseChannel):
         sender_name: str,
         conversation_type: str | None = None,
         conversation_id: str | None = None,
+        media: list[str] | None = None,
     ) -> None:
         """Handle incoming message (called by NanobotDingTalkHandler).
 
@@ -831,11 +834,16 @@ class DingTalkChannel(BaseChannel):
                 sender_id=sender_id,
                 chat_id=chat_id,
                 content=str(content),
+                media=media,
                 metadata={
                     "sender_name": sender_name,
                     "platform": "dingtalk",
                     "conversation_type": conversation_type,
                 },
+                capabilities=dingtalk_rag_capabilities(
+                    conversation_type,
+                    user_id=sender_id,
+                ),
                 session_key=session_key,
             )
         except Exception:

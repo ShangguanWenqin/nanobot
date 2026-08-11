@@ -18,6 +18,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
+from nanobot.channels.private_rag import wecom_rag_capabilities
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 
@@ -247,11 +248,15 @@ class WecomChannel(BaseChannel):
 
             # Extract sender info from "from" field (SDK format)
             from_info = body.get("from", {})
-            sender_id = (
-                cast(str, cast(dict[str, Any], from_info).get("userid", "unknown"))
+            raw_sender_id = (
+                cast(dict[str, Any], from_info).get("userid")
                 if isinstance(from_info, dict)
-                else "unknown"
+                else None
             )
+            if not isinstance(raw_sender_id, str) or not raw_sender_id.strip():
+                self.logger.warning("Ignoring WeCom message without a stable sender ID")
+                return
+            sender_id = raw_sender_id
             if not self.is_allowed(sender_id):
                 return
 
@@ -266,7 +271,8 @@ class WecomChannel(BaseChannel):
 
             # For single chat, chatid is the sender's userid
             # For group chat, chatid is provided in body
-            chat_type = cast(str, body.get("chattype", "single"))
+            raw_chat_type = body.get("chattype")
+            chat_type = raw_chat_type if isinstance(raw_chat_type, str) else ""
             chat_id = cast(str, body.get("chatid", sender_id))
 
             content_parts: list[str] = []
@@ -366,7 +372,8 @@ class WecomChannel(BaseChannel):
                     "message_id": msg_id,
                     "msg_type": msg_type,
                     "chat_type": chat_type,
-                }
+                },
+                capabilities=wecom_rag_capabilities(chat_type, user_id=sender_id),
             )
 
         except Exception:
