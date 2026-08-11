@@ -186,13 +186,16 @@ CREATE TABLE store_manifest (
     schema_version INTEGER NOT NULL,
     active_generation_id TEXT,
     embedding_profile_id TEXT,
+    lexical_analyzer_version TEXT,
+    chunking_version TEXT,
     updated_at INTEGER NOT NULL
 );
 
 INSERT INTO quota_ledger(singleton, committed_bytes, reserved_bytes) VALUES (1, 0, 0);
 INSERT INTO store_manifest(
-    singleton, schema_version, active_generation_id, embedding_profile_id, updated_at
-) VALUES (1, 1, NULL, NULL, 0);
+    singleton, schema_version, active_generation_id, embedding_profile_id,
+    lexical_analyzer_version, chunking_version, updated_at
+) VALUES (1, 1, NULL, NULL, NULL, NULL, 0);
 PRAGMA user_version = 1;
 """
 
