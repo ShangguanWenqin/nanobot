@@ -28,10 +28,16 @@ class RagParsingConfig(Base):
     max_file_bytes: int = Field(default=50 * _MIB, ge=1)
     max_attachments_per_batch: int = Field(default=10, ge=1, le=100)
     max_pdf_pages: int = Field(default=100, ge=1)
+    max_pdf_content_stream_bytes: int = Field(default=32 * _MIB, ge=1)
     max_extracted_chars: int = Field(default=200_000, ge=1)
     max_archive_members: int = Field(default=1_000, ge=1)
     max_archive_uncompressed_bytes: int = Field(default=200 * _MIB, ge=1)
+    max_archive_member_bytes: int = Field(default=64 * _MIB, ge=1)
     max_table_rows: int = Field(default=100_000, ge=1)
+    max_table_cells: int = Field(default=500_000, ge=1)
+    max_spreadsheet_sheets: int = Field(default=200, ge=1)
+    max_presentation_slides: int = Field(default=500, ge=1)
+    max_structure_depth: int = Field(default=16, ge=1)
     timeout_seconds: float = Field(default=60.0, gt=0)
 
 
