@@ -429,11 +429,11 @@ class SignalChannel(BaseChannel):
         content: str,
         media: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        capabilities: InboundMessageCapabilities | None = None,
         session_key: str | None = None,
         is_dm: bool = False,
         authorization_id: str | None = None,
         require_existing_session: bool = False,
-        capabilities: InboundMessageCapabilities | None = None,
     ) -> None:
         """Handle an inbound message whose policy has already been checked.
 
