@@ -104,6 +104,7 @@ if TYPE_CHECKING:
         ToolsConfig,
     )
     from nanobot.cron.service import CronService
+    from nanobot.rag.commands import RagApplication
     from nanobot.triggers.local_store import LocalTriggerStore
 
 _T = TypeVar("_T")
@@ -296,6 +297,7 @@ class AgentLoop:
         restart_mode: str = "auto",
         local_trigger_store: LocalTriggerStore | None = None,
         idle_compact_check_interval_seconds: int = 0,
+        rag_application: RagApplication | None = None,
     ):
         from nanobot.config.schema import ToolsConfig
 
@@ -457,6 +459,13 @@ class AgentLoop:
         self._current_iteration: int = 0
         self.commands = CommandRouter()
         register_builtin_commands(self.commands)
+        from nanobot.rag.commands import UnavailableRagApplication, register_rag_commands
+
+        register_rag_commands(self.commands, rag_application or UnavailableRagApplication())
+        if rag_application is not None and rag_application.available:
+            from nanobot.rag.knowledge_tool import KnowledgeBaseSearchTool
+
+            self.tools.register(KnowledgeBaseSearchTool(rag_application.search))
 
     @classmethod
     def from_config(
@@ -743,6 +752,14 @@ class AgentLoop:
             message_metadata=ctx.msg.metadata,
             session_metadata=ctx.session.metadata,
         )
+        attributes = dict(ctx.attributes)
+        capabilities = ctx.msg.capabilities
+        attributes["rag_capabilities"] = {
+            "conversation_scope": capabilities.conversation_scope.value,
+            "stable_authenticated_sender": capabilities.stable_authenticated_sender,
+            "authenticated_sender_id": capabilities.authenticated_sender_id,
+            "document_attachments": capabilities.document_attachments,
+        }
         return RequestContext(
             channel=ctx.delivery.route.channel,
             chat_id=ctx.delivery.route.chat_id,
@@ -751,7 +768,7 @@ class AgentLoop:
             original_user_text=ctx.original_user_text,
             runtime=ctx.runtime,
             metadata=dict(ctx.msg.metadata or {}),
-            attributes=dict(ctx.attributes),
+            attributes=attributes,
             sender_id=ctx.msg.sender_id,
             turn_id=ctx.turn_id,
             workspace=scope.project_path,

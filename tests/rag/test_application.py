@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+import pytest
+
+from nanobot.bus.events import ConversationScope
+from nanobot.rag.application import PrincipalRagServices, ServiceBackedRagApplication
+from nanobot.rag.ingestion import AcceptedIngestion, AcceptedIngestionBatch
+from nanobot.rag.library_status import (
+    DocumentPage,
+    DocumentSummary,
+    LibraryStatus,
+    RuntimeProfileReport,
+)
+from nanobot.rag.quota import QuotaUsage
+from nanobot.rag.types import (
+    DocumentId,
+    DocumentStatus,
+    JobId,
+    PrincipalId,
+    RagRequestContext,
+    RagSearchResult,
+    SearchStatus,
+)
+
+
+def _context(principal: str = "principal-a") -> RagRequestContext:
+    return RagRequestContext(
+        principal_id=PrincipalId(principal),
+        channel="websocket",
+        sender_id="trusted-user",
+        chat_id="private-chat",
+        conversation_scope=ConversationScope.PRIVATE,
+        authenticated_sender=True,
+    )
+
+
+class _Ingestion:
+    def __init__(self) -> None:
+        self.processed: list[JobId] = []
+
+    async def accept_batch(self, context, attachments):
+        del context, attachments
+        return AcceptedIngestionBatch(
+            items=(
+                AcceptedIngestion(
+                    document_id=DocumentId("a" * 32),
+                    job_id=JobId("b" * 32),
+                    duplicate=False,
+                ),
+            )
+        )
+
+    async def process_job(self, job_id):
+        self.processed.append(job_id)
+
+
+class _Deletion:
+    def __init__(self) -> None:
+        self.processed: list[JobId] = []
+
+    def request_delete(self, context, document_id):
+        del context, document_id
+        return JobId("c" * 32)
+
+    async def process_job(self, job_id):
+        self.processed.append(job_id)
+
+
+class _Status:
+    def status(self):
+        return LibraryStatus(
+            quota=QuotaUsage(committed_bytes=10, reserved_bytes=2, quota_bytes=100),
+            ready_document_count=1,
+            active_jobs=(),
+            recent_jobs=(),
+            runtime=RuntimeProfileReport(
+                query_embedding="cpu",
+                batch_embedding="cpu",
+                reranker="cpu",
+                embedding_profile_id="e5",
+                reranker_profile_id="bge",
+            ),
+        )
+
+    def list_documents(self):
+        now = datetime.now(UTC)
+        return DocumentPage(
+            items=(
+                DocumentSummary(
+                    document_id=DocumentId("a" * 32),
+                    filename="guide.pdf",
+                    mime_type="application/pdf",
+                    original_bytes=10,
+                    status=DocumentStatus.READY,
+                    created_at=now,
+                    updated_at=now,
+                    error_code=None,
+                ),
+            ),
+            next_cursor=None,
+        )
+
+
+class _Retrieval:
+    async def search(self, question):
+        del question
+        return RagSearchResult(status=SearchStatus.NO_EVIDENCE)
+
+
+@dataclass
+class _Attachment:
+    source_path: object
+
+
+@pytest.mark.asyncio
+async def test_application_resolves_only_current_principal_and_schedules_jobs() -> None:
+    ingestion = _Ingestion()
+    deletion = _Deletion()
+    observed: list[PrincipalId] = []
+    scheduled = []
+
+    def resolve(principal_id):
+        observed.append(principal_id)
+        return PrincipalRagServices(ingestion, deletion, _Status(), _Retrieval())
+
+    application = ServiceBackedRagApplication(resolve, schedule=scheduled.append)
+
+    added = await application.add(_context(), ())
+    deleted = await application.delete(_context(), DocumentId("a" * 32))
+    await application.search(_context(), "unknown")
+    for awaitable in scheduled:
+        await awaitable
+
+    assert observed == [PrincipalId("principal-a")] * 3
+    assert "a" * 32 in added and "b" * 32 in added
+    assert "c" * 32 in deleted
+    assert ingestion.processed == [JobId("b" * 32)]
+    assert deletion.processed == [JobId("c" * 32)]
+
+
+@pytest.mark.asyncio
+async def test_application_formats_path_free_status_and_document_list() -> None:
+    services = PrincipalRagServices(_Ingestion(), _Deletion(), _Status(), _Retrieval())
+    application = ServiceBackedRagApplication(lambda _principal: services, schedule=lambda _job: None)
+
+    status = await application.status(_context(), None)
+    documents = await application.list_documents(_context())
+
+    assert "12 / 100" in status
+    assert "cpu" in status
+    assert "guide.pdf" in documents
+    assert "a" * 32 in documents
+    assert "/Users/" not in status + documents

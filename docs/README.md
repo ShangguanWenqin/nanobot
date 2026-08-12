@@ -1,5 +1,7 @@
 # nanobot Documentation
 
+- [本地私人 RAG](private-rag.md)
+
 Use these docs to get a working agent first, then open a task guide only when you need the next capability. Source-level design and extension details are kept in the contributor section.
 
 Repository docs follow the current source tree and can be newer than the latest package release. For published release docs, visit [nanobot.wiki](https://nanobot.wiki/docs/latest/getting-started/nanobot-overview).

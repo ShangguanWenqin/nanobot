@@ -176,6 +176,43 @@ BUILTIN_COMMAND_SPECS: tuple[BuiltinCommandSpec, ...] = (
         "[list|approve <code>|deny <code>|revoke <user_id>]",
         accepts_args=True,
     ),
+    BuiltinCommandSpec(
+        "/rag add",
+        "添加私人知识库文档",
+        "仅将当前消息附件加入已认证用户的私人知识库。",
+        "database",
+    ),
+    BuiltinCommandSpec(
+        "/rag status",
+        "查看 RAG 状态",
+        "查看配额、运行 Profile 或指定入库任务状态。",
+        "activity",
+        "[job_id]",
+        accepts_args=True,
+    ),
+    BuiltinCommandSpec(
+        "/rag list",
+        "列出 RAG 文档",
+        "列出当前已认证用户私人知识库中的文档。",
+        "library",
+    ),
+    BuiltinCommandSpec(
+        "/rag delete",
+        "删除 RAG 文档",
+        "从当前用户私人知识库删除指定文档。",
+        "trash-2",
+        "<document_id>",
+        accepts_args=True,
+    ),
+    BuiltinCommandSpec(
+        "/rag ask",
+        "强制查询 RAG",
+        "先检索当前私人知识库，再依据带引用证据回答。",
+        "search",
+        "<question>",
+        lifecycle="agent_turn_with_args",
+        accepts_args=True,
+    ),
 )
 
 

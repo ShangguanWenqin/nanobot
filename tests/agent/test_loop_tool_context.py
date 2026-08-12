@@ -11,9 +11,22 @@ from nanobot.agent.tools.context import (
     current_request_context,
     reset_request_context,
 )
-from nanobot.bus.events import InboundMessage
+from nanobot.bus.events import (
+    ConversationScope,
+    InboundMessage,
+    InboundMessageCapabilities,
+)
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMResponse, ToolCallRequest
+from nanobot.rag.types import (
+    ChunkKey,
+    DocumentId,
+    RagEvidence,
+    RagSearchResult,
+    SearchStatus,
+    SourceKind,
+    SourceLocation,
+)
 from nanobot.session.turn_continuation import INTERNAL_CONTINUATION_META
 
 
@@ -54,6 +67,50 @@ class _Tools:
 
     def prepare_call(self, name: str, arguments: dict):
         return (self.tool, arguments, None) if name == "cron" else (None, arguments, None)
+
+
+class _RagApplication:
+    available = True
+    unavailable_message = "RAG unavailable"
+
+    def __init__(self) -> None:
+        self.searches: list[tuple[object, str]] = []
+
+    async def search(self, context, question: str) -> RagSearchResult:
+        self.searches.append((context, question))
+        return RagSearchResult(
+            status=SearchStatus.EVIDENCE,
+            evidence=(
+                RagEvidence(
+                    chunk_key=ChunkKey(1),
+                    document_id=DocumentId("a" * 32),
+                    filename="private.txt",
+                    text="SELECTED_PRIVATE_EVIDENCE",
+                    location=SourceLocation(
+                        kind=SourceKind.TEXT_LINES,
+                        line_start=2,
+                        line_end=3,
+                    ),
+                    fusion_score=0.5,
+                    reranker_score=0.9,
+                ),
+            ),
+        )
+
+    async def add(self, context, attachments):
+        return "added"
+
+    async def status(self, context, job_id):
+        return "status"
+
+    async def list_documents(self, context):
+        return "list"
+
+    async def delete(self, context, document_id):
+        return "deleted"
+
+    async def ask(self, context, question):
+        return "answer"
 
 
 @pytest.mark.asyncio
@@ -100,6 +157,171 @@ async def test_loop_binds_request_context_for_tool_execution(tmp_path: Path) -> 
         "session_key": "slack:C123:111.222",
     }
     assert cron.runtimes[-1] is runtime
+
+
+def test_turn_request_context_contains_immutable_trusted_channel_capabilities(
+    tmp_path: Path,
+) -> None:
+    provider = MagicMock()
+    provider.get_default_model.return_value = "test-model"
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="test-model",
+    )
+    msg = InboundMessage(
+        channel="websocket",
+        sender_id="transport-user",
+        chat_id="private-chat",
+        content="hello",
+        capabilities=InboundMessageCapabilities(
+            conversation_scope=ConversationScope.PRIVATE,
+            stable_authenticated_sender=True,
+            authenticated_sender_id="authenticated-user",
+            document_attachments=True,
+        ),
+    )
+    turn = MagicMock()
+    turn.session = MagicMock(metadata={})
+    turn.delivery.route.channel = "websocket"
+    turn.delivery.route.chat_id = "private-chat"
+    turn.msg = msg
+    turn.session_key = "websocket:private-chat"
+    turn.original_user_text = "hello"
+    turn.runtime = loop.llm_runtime()
+    turn.attributes = {}
+    turn.turn_id = "turn-1"
+
+    request = loop._request_context_for_turn(turn)
+
+    assert request.attributes["rag_capabilities"] == {
+        "conversation_scope": "private",
+        "stable_authenticated_sender": True,
+        "authenticated_sender_id": "authenticated-user",
+        "document_attachments": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_registers_rag_tool_and_sends_only_selected_evidence(
+    tmp_path: Path,
+) -> None:
+    provider = MagicMock()
+    provider.get_default_model.return_value = "test-model"
+    captured_messages: list[list[dict]] = []
+    calls = 0
+
+    async def chat_with_retry(**kwargs):
+        nonlocal calls
+        calls += 1
+        captured_messages.append(kwargs["messages"])
+        if calls == 1:
+            return LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCallRequest(
+                        id="rag-1",
+                        name="search_knowledge_base",
+                        arguments={"question": "deployment"},
+                    )
+                ],
+            )
+        return LLMResponse(content="answer with citation", tool_calls=[])
+
+    provider.chat_with_retry = chat_with_retry
+    application = _RagApplication()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="test-model",
+        rag_application=application,
+    )
+    request = RequestContext(
+        channel="websocket",
+        chat_id="private-chat",
+        sender_id="transport-user",
+        attributes={
+            "rag_capabilities": {
+                "conversation_scope": "private",
+                "stable_authenticated_sender": True,
+                "authenticated_sender_id": "trusted-user",
+                "document_attachments": True,
+            }
+        },
+    )
+
+    await loop._run_agent_loop(
+        [{"role": "user", "content": "How is deployment configured?"}],
+        runtime=loop.llm_runtime(),
+        request_context=request,
+    )
+
+    assert "search_knowledge_base" in loop.tool_names
+    assert application.searches[0][0].sender_id == "trusted-user"
+    tool_result = next(
+        message["content"]
+        for message in captured_messages[-1]
+        if message.get("role") == "tool"
+    )
+    assert "SELECTED_PRIVATE_EVIDENCE" in tool_result
+    assert "untrusted_rag_evidence" in tool_result
+    assert "引用" in tool_result
+
+
+@pytest.mark.asyncio
+async def test_agent_can_answer_without_rag_and_cannot_override_principal(tmp_path: Path) -> None:
+    provider = MagicMock()
+    provider.get_default_model.return_value = "test-model"
+    calls = 0
+
+    async def chat_with_retry(**_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCallRequest(
+                        id="rag-override",
+                        name="search_knowledge_base",
+                        arguments={"question": "secret", "principal_id": "victim"},
+                    )
+                ],
+            )
+        return LLMResponse(content="answered without private evidence", tool_calls=[])
+
+    provider.chat_with_retry = chat_with_retry
+    application = _RagApplication()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="test-model",
+        rag_application=application,
+    )
+    request = RequestContext(
+        channel="websocket",
+        chat_id="private-chat",
+        sender_id="transport-user",
+        attributes={
+            "rag_capabilities": {
+                "conversation_scope": "private",
+                "stable_authenticated_sender": True,
+                "authenticated_sender_id": "trusted-user",
+                "document_attachments": True,
+            }
+        },
+    )
+
+    await loop._run_agent_loop(
+        [{"role": "user", "content": "hello"}],
+        runtime=loop.llm_runtime(),
+        request_context=request,
+    )
+
+    assert application.searches == []
 
 
 def test_request_context_nested_bind_restores_outer_context() -> None:
