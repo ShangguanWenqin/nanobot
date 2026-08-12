@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from nanobot.rag.hardware import RuntimeCandidate, Workload
+from nanobot.rag.progress import RagPhase, RagProgressEvent, RagProgressState
 from nanobot.rag.runtime_selection import (
     BenchmarkObservation,
     BenchmarkPolicy,
@@ -17,6 +18,7 @@ from nanobot.rag.runtime_selection import (
     RuntimeSelectionCache,
     SafeRuntimeRouter,
 )
+from nanobot.rag.types import OperationId
 
 
 def _candidate(name: str, provider: str = "CPUExecutionProvider") -> RuntimeCandidate:
@@ -134,6 +136,63 @@ async def test_selector_warms_candidates_and_selects_fastest_per_workload() -> N
     )
     assert selection.ranked(Workload.QUERY_EMBEDDING) == (CPU.name, GPU.name)
     assert selection.ranked(Workload.BATCH_EMBEDDING) == (GPU.name, CPU.name)
+
+
+@pytest.mark.asyncio
+async def test_selector_publishes_benchmark_start_and_safe_selected_profiles() -> None:
+    evaluator = FakeEvaluator(
+        {
+            CPU.name: _evaluation(
+                CPU,
+                query_latency=0.01,
+                batch_latency=0.02,
+                reranker_latency=0.03,
+            )
+        }
+    )
+    events: list[RagProgressEvent] = []
+
+    async def progress(event: RagProgressEvent) -> None:
+        events.append(event)
+
+    selector = HardwareRuntimeSelector(
+        BenchmarkPolicy(total_seconds=1.0, candidate_seconds=0.5),
+        evaluator,
+        progress=progress,
+        operation_id_factory=lambda: OperationId("d" * 32),
+    )
+
+    await selector.select("hardware-fingerprint", (CPU,))
+
+    assert [(event.phase, event.state) for event in events] == [
+        (RagPhase.BENCHMARKING, RagProgressState.RUNNING),
+        (RagPhase.SELECTED, RagProgressState.RUNNING),
+        (RagPhase.COMPLETED, RagProgressState.COMPLETED),
+    ]
+    payload = str([event.to_public_dict() for event in events])
+    assert "cpu-float32" in payload
+    assert "hardware-fingerprint" not in payload
+
+
+@pytest.mark.asyncio
+async def test_selector_failure_publishes_safe_terminal_event_without_changing_error() -> None:
+    events: list[RagProgressEvent] = []
+
+    async def progress(event: RagProgressEvent) -> None:
+        events.append(event)
+
+    selector = HardwareRuntimeSelector(
+        BenchmarkPolicy(total_seconds=0.01, candidate_seconds=0.01),
+        FakeEvaluator({}, delays={}),
+        progress=progress,
+        operation_id_factory=lambda: OperationId("e" * 32),
+    )
+
+    with pytest.raises(ValueError, match="at least one local runtime candidate"):
+        await selector.select("hardware-fingerprint", ())
+
+    assert events[-1].phase is RagPhase.FAILED
+    assert events[-1].state is RagProgressState.FAILED
 
 
 @pytest.mark.asyncio
@@ -330,6 +389,34 @@ async def test_safe_router_blacklists_failed_accelerator_emits_once_and_falls_ba
         )
     ]
     assert router.blacklisted == (GPU.name,)
+
+
+@pytest.mark.asyncio
+async def test_safe_router_projects_accelerator_failure_to_safe_rag_progress_once() -> None:
+    selection = RuntimeSelection(
+        hardware_fingerprint="fingerprint",
+        selected=((Workload.RERANKER, GPU.name),),
+        rankings=((Workload.RERANKER, (GPU.name, CPU.name)),),
+        rejections=(),
+    )
+    progress: list[RagProgressEvent] = []
+    router = SafeRuntimeRouter(
+        selection,
+        rag_progress_publisher=progress.append,
+        operation_id_factory=lambda: OperationId("b" * 32),
+    )
+
+    async def operation(candidate_name: str) -> str:
+        if candidate_name == GPU.name:
+            raise RuntimeError("secret /Users/alice/model.onnx OOM")
+        return "cpu-result"
+
+    assert await router.execute(Workload.RERANKER, operation) == "cpu-result"
+    assert await router.execute(Workload.RERANKER, operation) == "cpu-result"
+    assert len(progress) == 1
+    assert progress[0].phase is RagPhase.FALLBACK
+    assert "cpu-float32" in progress[0].fallback_text
+    assert "/Users/" not in str(progress[0].to_public_dict())
 
 
 @pytest.mark.asyncio

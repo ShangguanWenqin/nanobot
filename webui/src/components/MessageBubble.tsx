@@ -13,6 +13,7 @@ import {
   CircleAlert,
   Clock3,
   Copy,
+  Database,
   ImageIcon,
   Quote,
   Wrench,
@@ -847,9 +848,31 @@ export function TraceGroup({ message }: TraceGroupProps) {
   const { t } = useTranslation();
   const lines = message.traces ?? [message.content];
   const count = lines.length;
-  const [open, setOpen] = useState(false);
+  const isRag = Boolean(message.ragOperationId);
+  const isRagActive = message.ragState === "queued" || message.ragState === "running";
+  const isRagFailed = message.ragState === "failed";
+  const [open, setOpen] = useState(isRagActive);
+
+  useEffect(() => {
+    if (isRag && !isRagActive) setOpen(false);
+  }, [isRag, isRagActive]);
+
+  const label = isRag
+    ? message.content
+    : count === 1
+      ? t("message.toolSingle")
+      : t("message.toolMany", { count });
   return (
     <div className="w-full">
+      {isRag && (
+        <span
+          role={isRagFailed ? "alert" : "status"}
+          aria-live={isRagFailed ? "assertive" : "polite"}
+          className="sr-only"
+        >
+          {message.content}
+        </span>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -859,12 +882,16 @@ export function TraceGroup({ message }: TraceGroupProps) {
         )}
         aria-expanded={open}
       >
-        <Wrench className="h-3.5 w-3.5" aria-hidden />
-        <span className="font-medium">
-          {count === 1
-            ? t("message.toolSingle")
-            : t("message.toolMany", { count })}
-        </span>
+        {isRag ? (
+          isRagFailed ? (
+            <CircleAlert className="h-3.5 w-3.5 text-destructive" aria-hidden />
+          ) : (
+            <Database className="h-3.5 w-3.5" aria-hidden />
+          )
+        ) : (
+          <Wrench className="h-3.5 w-3.5" aria-hidden />
+        )}
+        <span className={cn("font-medium", isRagFailed && "text-destructive")}>{label}</span>
         <ChevronRight
           aria-hidden
           className={cn(

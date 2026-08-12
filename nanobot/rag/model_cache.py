@@ -6,12 +6,14 @@ import hashlib
 import os
 import shutil
 import tempfile
+from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
 from typing import Protocol, cast
 
 from nanobot.rag.model_manifest import LocalModelManifest, ModelArtifact
-from nanobot.rag.types import RagErrorCode
+from nanobot.rag.progress import RagOperation, RagPhase, RagProgressEvent, RagProgressState
+from nanobot.rag.types import OperationId, RagErrorCode
 
 
 class ArtifactDownloader(Protocol):
@@ -82,12 +84,20 @@ class ModelCacheError(RuntimeError):
 
 
 class ModelCache:
-    def __init__(self, root: str | Path) -> None:
+    def __init__(
+        self,
+        root: str | Path,
+        *,
+        progress: Callable[[RagProgressEvent], None] | None = None,
+        operation_id_factory: Callable[[], OperationId] | None = None,
+    ) -> None:
         self.root = Path(root).expanduser().absolute()
         if self.root.exists() and self.root.is_symlink():
             raise ValueError("model cache root must not be a symbolic link")
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.root.chmod(0o700)
+        self._progress = progress
+        self._operation_id_factory = operation_id_factory
 
     def prepare(
         self,
@@ -101,12 +111,24 @@ class ModelCache:
         target = self.root / manifest.profile_id
         if self.verify(manifest):
             return target
+        operation_id = self._new_operation_id()
+        self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.MODEL_PREPARE,
+                phase=RagPhase.DOWNLOADING,
+                state=RagProgressState.RUNNING,
+                fallback_text=f"正在准备本地 RAG 模型 {manifest.profile_id}…",
+            )
+        )
         if target.exists():
+            self._publish_failure(operation_id, RagErrorCode.MODEL_INTEGRITY_FAILED)
             raise ModelCacheError(
                 RagErrorCode.MODEL_INTEGRITY_FAILED,
                 "本地模型缓存完整性校验失败",
             )
         if offline:
+            self._publish_failure(operation_id, RagErrorCode.MODEL_MISSING)
             raise ModelCacheError(RagErrorCode.MODEL_MISSING, "离线模式下缺少本地模型")
 
         lock_path = self.root / f"{manifest.profile_id}.lock"
@@ -114,6 +136,7 @@ class ModelCache:
             if self.verify(manifest):
                 return target
             if target.exists():
+                self._publish_failure(operation_id, RagErrorCode.MODEL_INTEGRITY_FAILED)
                 raise ModelCacheError(
                     RagErrorCode.MODEL_INTEGRITY_FAILED,
                     "本地模型缓存完整性校验失败",
@@ -136,11 +159,16 @@ class ModelCache:
                             destination,
                         )
                     except OSError as exc:
+                        self._publish_failure(operation_id, RagErrorCode.MODEL_MISSING)
                         raise ModelCacheError(
                             RagErrorCode.MODEL_MISSING,
                             "本地模型文件下载失败",
                         ) from exc
-                    self._verify_artifact(destination, artifact)
+                    try:
+                        self._verify_artifact(destination, artifact)
+                    except ModelCacheError as exc:
+                        self._publish_failure(operation_id, exc.code)
+                        raise
                     destination.chmod(0o600)
                 manifest_path = temporary / "manifest.json"
                 manifest_path.write_text(manifest.canonical_json(), encoding="utf-8")
@@ -151,11 +179,52 @@ class ModelCache:
                 if temporary.exists():
                     self._remove_temporary_directory(temporary)
         if not self.verify(manifest):
+            self._publish_failure(operation_id, RagErrorCode.MODEL_INTEGRITY_FAILED)
             raise ModelCacheError(
                 RagErrorCode.MODEL_INTEGRITY_FAILED,
                 "发布后的本地模型缓存完整性校验失败",
             )
+        self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.MODEL_PREPARE,
+                phase=RagPhase.COMPLETED,
+                state=RagProgressState.COMPLETED,
+                fallback_text=f"本地 RAG 模型 {manifest.profile_id} 已准备完成。",
+            )
+        )
         return target
+
+    def _new_operation_id(self) -> OperationId:
+        if self._operation_id_factory is not None:
+            return self._operation_id_factory()
+        import secrets
+
+        return OperationId(secrets.token_hex(16))
+
+    def _publish(self, event: RagProgressEvent) -> None:
+        if self._progress is None:
+            return
+        try:
+            self._progress(event)
+        except Exception:
+            pass
+
+    def _publish_failure(
+        self,
+        operation_id: OperationId,
+        error_code: RagErrorCode,
+    ) -> None:
+        self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.MODEL_PREPARE,
+                phase=RagPhase.FAILED,
+                state=RagProgressState.FAILED,
+                error_code=error_code,
+                fallback_text="本地 RAG 模型准备失败，请检查模型缓存和离线部署配置。",
+            )
+        )
 
     def prefetch(
         self,

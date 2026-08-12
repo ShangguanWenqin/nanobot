@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from nanobot.rag.hardware import Workload
 from nanobot.rag.progress import (
     RagOperation,
     RagPhase,
@@ -9,7 +10,9 @@ from nanobot.rag.progress import (
     RagProgressPublisher,
     RagProgressState,
     build_bus_rag_progress_delivery,
+    runtime_fallback_progress_event,
 )
+from nanobot.rag.runtime_selection import RuntimeFallbackEvent
 from nanobot.rag.types import DocumentId, OperationId, RagErrorCode
 
 
@@ -124,3 +127,21 @@ async def test_bus_delivery_preserves_route_and_typed_event() -> None:
     assert message.chat_id == "chat-1"
     assert message.metadata == {"turn_id": "turn-1"}
     assert message.event == _event()
+
+
+def test_runtime_fallback_projection_is_once_safe_and_reports_cpu() -> None:
+    event = runtime_fallback_progress_event(
+        OperationId("c" * 32),
+        RuntimeFallbackEvent(
+            workload=Workload.RERANKER,
+            failed_candidate="cuda-fp16",
+            fallback_candidate="cpu-int8",
+            reason="secret /Users/alice/model.onnx OOM",
+        ),
+    )
+
+    assert event.phase is RagPhase.FALLBACK
+    assert event.state is RagProgressState.RUNNING
+    assert "cpu-int8" in event.fallback_text
+    assert "/Users/" not in str(event.to_public_dict())
+    assert "OOM" not in str(event.to_public_dict())

@@ -8,12 +8,16 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import PurePath
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from nanobot.bus.outbound_events import ProgressEvent, outbound_message_for_event
 from nanobot.bus.queue import MessageBus
 from nanobot.rag.types import DocumentId, OperationId, RagErrorCode, RagRequestContext
+
+if TYPE_CHECKING:
+    from nanobot.rag.runtime_selection import RuntimeFallbackEvent
 
 _SYSTEM_ID = re.compile(r"[0-9a-f]{32}")
 
@@ -217,6 +221,24 @@ def build_bus_rag_progress_delivery(bus: MessageBus) -> RoutedProgressDelivery:
     return deliver
 
 
+def runtime_fallback_progress_event(
+    operation_id: OperationId,
+    fallback: RuntimeFallbackEvent,
+) -> RagProgressEvent:
+    """Project an inference fallback without exposing the triggering exception."""
+
+    return RagProgressEvent(
+        operation_id=operation_id,
+        operation=RagOperation.BENCHMARK,
+        phase=RagPhase.FALLBACK,
+        state=RagProgressState.RUNNING,
+        fallback_text=(
+            f"本地 RAG 的 {fallback.workload.value} 加速方案不可用，"
+            f"已回退到 {fallback.fallback_candidate}。"
+        ),
+    )
+
+
 __all__ = [
     "RagOperation",
     "RagPhase",
@@ -224,4 +246,5 @@ __all__ = [
     "RagProgressPublisher",
     "RagProgressState",
     "build_bus_rag_progress_delivery",
+    "runtime_fallback_progress_event",
 ]

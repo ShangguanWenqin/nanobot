@@ -354,6 +354,8 @@ class WebSocketChannel(BaseChannel):
 
     name = "websocket"
     display_name = "WebSocket"
+    # Web clients project operation-keyed progress frames into one live row.
+    supports_progress_updates = True
 
     def __init__(
         self,

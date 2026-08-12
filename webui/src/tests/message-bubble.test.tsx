@@ -785,6 +785,45 @@ describe("MessageBubble", () => {
     expect(screen.getByText('search "hk weather"')).toBeInTheDocument();
   });
 
+  it("renders live RAG progress and folds its timeline on completion", () => {
+    const running: UIMessage = {
+      id: "rag-query",
+      role: "tool",
+      kind: "trace",
+      content: "正在从 RAG 库中查询…",
+      traces: ["正在从 RAG 库中查询…", "正在重排候选证据…"],
+      ragOperationId: "op-query",
+      ragState: "running",
+      createdAt: Date.now(),
+    };
+    const { rerender } = render(<MessageBubble message={running} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("正在从 RAG 库中查询…");
+    expect(screen.getByRole("button", { name: "正在从 RAG 库中查询…" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText("正在重排候选证据…")).toBeInTheDocument();
+
+    rerender(
+      <MessageBubble
+        message={{
+          ...running,
+          content: "RAG 查询完成。",
+          traces: [...running.traces!, "RAG 查询完成。"],
+          ragState: "completed",
+          isStreaming: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "RAG 查询完成。" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("正在重排候选证据…")).not.toBeInTheDocument();
+  });
+
   it("renders video media as an inline player", () => {
     const message: UIMessage = {
       id: "a1",

@@ -13,6 +13,14 @@ from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
 from nanobot.rag.hardware import RuntimeCandidate, Workload
+from nanobot.rag.progress import (
+    RagOperation,
+    RagPhase,
+    RagProgressEvent,
+    RagProgressState,
+    runtime_fallback_progress_event,
+)
+from nanobot.rag.types import OperationId, RagErrorCode
 
 T = TypeVar("T")
 
@@ -266,10 +274,14 @@ class HardwareRuntimeSelector:
         evaluator: CandidateEvaluator,
         *,
         cache: RuntimeSelectionCache | None = None,
+        progress: Callable[[RagProgressEvent], Awaitable[None]] | None = None,
+        operation_id_factory: Callable[[], OperationId] | None = None,
     ) -> None:
         self.policy = policy
         self.evaluator = evaluator
         self.cache = cache
+        self._progress = progress
+        self._operation_id_factory = operation_id_factory
 
     async def select(
         self,
@@ -277,11 +289,23 @@ class HardwareRuntimeSelector:
         candidates: tuple[RuntimeCandidate, ...],
     ) -> RuntimeSelection:
         if not candidates:
+            await self._publish_failure(self._new_operation_id())
             raise ValueError("at least one local runtime candidate is required")
         cached = self.cache.load(hardware_fingerprint) if self.cache is not None else None
         candidate_names = {candidate.name for candidate in candidates}
         if cached is not None and self._cache_matches(cached, candidate_names):
             return cached
+
+        operation_id = self._new_operation_id()
+        await self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.BENCHMARK,
+                phase=RagPhase.BENCHMARKING,
+                state=RagProgressState.RUNNING,
+                fallback_text="正在测试本机 RAG 加速方案…",
+            )
+        )
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.policy.total_seconds
@@ -312,6 +336,7 @@ class HardwareRuntimeSelector:
             evaluations.append(evaluation)
 
         if not evaluations:
+            await self._publish_failure(operation_id)
             raise RuntimeError("no local runtime candidate completed the benchmark")
         reference = self._reference(evaluations)
         accepted: list[CandidateEvaluation] = []
@@ -322,6 +347,7 @@ class HardwareRuntimeSelector:
             else:
                 rejections.append((evaluation.candidate.name, reason))
         if not accepted:
+            await self._publish_failure(operation_id)
             raise RuntimeError("no local runtime candidate passed correctness gates")
 
         rankings: list[tuple[Workload, tuple[str, ...]]] = []
@@ -352,7 +378,53 @@ class HardwareRuntimeSelector:
         )
         if self.cache is not None:
             self.cache.save(result)
+        selected_names = ", ".join(candidate for _, candidate in result.selected)
+        await self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.BENCHMARK,
+                phase=RagPhase.SELECTED,
+                state=RagProgressState.RUNNING,
+                fallback_text=f"已选择本地 RAG 运行方案：{selected_names}。",
+            )
+        )
+        await self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.BENCHMARK,
+                phase=RagPhase.COMPLETED,
+                state=RagProgressState.COMPLETED,
+                fallback_text="本机 RAG 加速方案准备完成。",
+            )
+        )
         return result
+
+    def _new_operation_id(self) -> OperationId:
+        if self._operation_id_factory is not None:
+            return self._operation_id_factory()
+        import secrets
+
+        return OperationId(secrets.token_hex(16))
+
+    async def _publish(self, event: RagProgressEvent) -> None:
+        if self._progress is None:
+            return
+        try:
+            await self._progress(event)
+        except Exception:
+            pass
+
+    async def _publish_failure(self, operation_id: OperationId) -> None:
+        await self._publish(
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.BENCHMARK,
+                phase=RagPhase.FAILED,
+                state=RagProgressState.FAILED,
+                error_code=RagErrorCode.MODEL_INITIALIZATION_FAILED,
+                fallback_text="本机 RAG 加速方案测试失败，将保持安全的本地运行策略。",
+            )
+        )
 
     async def _warm_and_evaluate(
         self,
@@ -428,9 +500,13 @@ class SafeRuntimeRouter:
         selection: RuntimeSelection,
         *,
         event_publisher: Callable[[RuntimeFallbackEvent], None] | None = None,
+        rag_progress_publisher: Callable[[RagProgressEvent], None] | None = None,
+        operation_id_factory: Callable[[], OperationId] | None = None,
     ) -> None:
         self.selection = selection
         self._event_publisher = event_publisher
+        self._rag_progress_publisher = rag_progress_publisher
+        self._operation_id_factory = operation_id_factory
         self._blacklisted: set[str] = set()
         self._emitted: set[tuple[Workload, str]] = set()
 
@@ -482,9 +558,28 @@ class SafeRuntimeRouter:
             return
         self._emitted.add(key)
         if self._event_publisher is None:
+            self._publish_rag_progress(event)
+        else:
+            try:
+                self._event_publisher(event)
+            except Exception:
+                pass
+            self._publish_rag_progress(event)
+
+    def _publish_rag_progress(self, event: RuntimeFallbackEvent) -> None:
+        if self._rag_progress_publisher is None:
             return
         try:
-            self._event_publisher(event)
+            import secrets
+
+            operation_id = (
+                self._operation_id_factory()
+                if self._operation_id_factory is not None
+                else OperationId(secrets.token_hex(16))
+            )
+            self._rag_progress_publisher(
+                runtime_fallback_progress_event(operation_id, event)
+            )
         except Exception:
             # Progress delivery is best-effort and cannot alter inference state.
             pass

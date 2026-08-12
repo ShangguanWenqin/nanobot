@@ -67,6 +67,22 @@ _BOOL_CAMEL_ALIASES: dict[str, str] = {
     "show_reasoning": "showReasoning",
 }
 
+
+def _plain_rag_progress_visible(event: Any) -> bool:
+    """Keep plain channels informative without emitting every internal phase."""
+    from nanobot.rag.progress import RagOperation, RagPhase, RagProgressEvent, RagProgressState
+
+    if not isinstance(event, RagProgressEvent):
+        return False
+    if event.operation is RagOperation.QUERY:
+        return event.phase is RagPhase.QUERYING or event.state is RagProgressState.FAILED
+    if event.operation in {RagOperation.INGEST, RagOperation.DELETE}:
+        return event.phase is RagPhase.QUEUED or event.state in {
+            RagProgressState.COMPLETED,
+            RagProgressState.FAILED,
+        }
+    return event.state in {RagProgressState.COMPLETED, RagProgressState.FAILED}
+
 def _default_channel_config(name: str) -> dict[str, Any] | None:
     from nanobot.channels.registry import load_channel_plugin
 
@@ -816,7 +832,18 @@ class ChannelManager:
     async def _send_once(channel: BaseChannel, msg: OutboundMessage) -> None:
         """Send one outbound message without retry policy."""
         event = outbound_event_from_message(msg)
-        if isinstance(event, ProgressEvent) and event.reasoning_end:
+        from nanobot.rag.progress import RagProgressEvent
+
+        if isinstance(event, RagProgressEvent):
+            if channel.supports_progress_updates:
+                await channel.send_progress_update(
+                    msg,
+                    operation_id=str(event.operation_id),
+                    terminal=event.state.value in {"completed", "failed"},
+                )
+            elif _plain_rag_progress_visible(event):
+                await channel.send(msg)
+        elif isinstance(event, ProgressEvent) and event.reasoning_end:
             await ChannelManager._send_reasoning_end(channel, msg, event)
         elif isinstance(event, ProgressEvent) and event.reasoning_delta:
             await ChannelManager._send_reasoning_delta(channel, msg, event)

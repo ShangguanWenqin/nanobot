@@ -9,6 +9,7 @@ import {
   toolTraceLinesFromEvents,
 } from "@/lib/tool-traces";
 import { hasPendingAgentActivity } from "@/lib/activity-timeline";
+import { projectRagProgress } from "@/lib/rag-progress";
 import type { StreamError } from "@/lib/nanobot-client";
 import {
   closeReasoningStream,
@@ -864,6 +865,12 @@ export function useNanobotStream(
         // Attach them to the last trace row if it was the last emitted item
         // so a sequence of calls collapses into one compact trace group.
         if (ev.kind === "tool_hint" || ev.kind === "progress") {
+          const ragProgress = ev.rag_progress;
+          if (ragProgress) {
+            const turn = turnFieldsFromEvent(ev, "activity");
+            setMessages((prev) => projectRagProgress(prev, ragProgress, turn, Date.now()));
+            return;
+          }
           const structuredEvents = normalizeToolProgressEvents(ev.tool_events);
           const turn = turnFieldsFromEvent(ev, "activity");
           setMessages((prev) => {

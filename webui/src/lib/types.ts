@@ -87,6 +87,10 @@ export interface UIMessage {
   deliveryStatus?: MessageDeliveryStatus;
   /** Structured rejection reason shown with a failed optimistic message. */
   deliveryErrorKind?: MessageDeliveryErrorKind;
+  /** One compact local-RAG timeline per operation. */
+  ragOperationId?: string;
+  ragState?: RagProgressPayload["state"];
+  ragPhaseKeys?: string[];
 }
 
 export interface UICliAppAttachment {

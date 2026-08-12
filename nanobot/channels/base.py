@@ -35,6 +35,7 @@ class BaseChannel(ABC):
     send_progress: bool = True
     send_tool_hints: bool = True
     show_reasoning: bool = True
+    supports_progress_updates: bool = False
 
     def __init__(self, config: Any, bus: MessageBus):
         """
@@ -201,6 +202,21 @@ class BaseChannel(ABC):
         this to render editing progress without receiving empty text messages.
         """
         return
+
+    async def send_progress_update(
+        self,
+        msg: OutboundMessage,
+        *,
+        operation_id: str,
+        terminal: bool,
+    ) -> None:
+        """Create or update one operation-scoped progress message.
+
+        Rich channels override this and use ``operation_id`` as their stable
+        update key. The default retains safe plain-message delivery.
+        """
+        del operation_id, terminal
+        await self.send(msg)
 
     async def send_reasoning(self, msg: OutboundMessage) -> None:
         """Deliver a complete reasoning block.

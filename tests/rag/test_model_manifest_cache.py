@@ -15,7 +15,8 @@ from nanobot.rag.model_manifest import (
     ModelKind,
     canonical_output_sha256,
 )
-from nanobot.rag.types import RagErrorCode
+from nanobot.rag.progress import RagPhase, RagProgressEvent, RagProgressState
+from nanobot.rag.types import OperationId, RagErrorCode
 
 MODEL_BYTES = b"fake-onnx-model"
 TOKENIZER_BYTES = b'{"version":"1.0"}'
@@ -151,6 +152,32 @@ def test_cache_downloads_verifies_and_atomically_publishes(tmp_path: Path) -> No
     assert not list(tmp_path.glob("*.partial-*"))
 
 
+def test_cache_publishes_model_prepare_lifecycle_without_cache_paths(tmp_path: Path) -> None:
+    manifest = _embedding_manifest()
+    events: list[RagProgressEvent] = []
+    cache = ModelCache(
+        tmp_path,
+        progress=events.append,
+        operation_id_factory=lambda: OperationId("f" * 32),
+    )
+
+    cache.prepare(
+        manifest,
+        FakeDownloader(
+            {
+                "onnx/model.onnx": MODEL_BYTES,
+                "onnx/tokenizer.json": TOKENIZER_BYTES,
+            }
+        ),
+    )
+
+    assert [(event.phase, event.state) for event in events] == [
+        (RagPhase.DOWNLOADING, RagProgressState.RUNNING),
+        (RagPhase.COMPLETED, RagProgressState.COMPLETED),
+    ]
+    assert str(tmp_path) not in str([event.to_public_dict() for event in events])
+
+
 def test_concurrent_prepare_downloads_each_artifact_once(tmp_path: Path) -> None:
     manifest = _embedding_manifest()
     downloader = FakeDownloader(
@@ -188,6 +215,28 @@ def test_hash_mismatch_or_download_failure_never_publishes_partial_cache(
     assert not list(tmp_path.glob("*.partial-*"))
 
 
+def test_integrity_failure_publishes_safe_terminal_event(tmp_path: Path) -> None:
+    events: list[RagProgressEvent] = []
+    cache = ModelCache(
+        tmp_path,
+        progress=events.append,
+        operation_id_factory=lambda: OperationId("c" * 32),
+    )
+    bad = FakeDownloader(
+        {
+            "onnx/model.onnx": b"wrong",
+            "onnx/tokenizer.json": TOKENIZER_BYTES,
+        }
+    )
+
+    with pytest.raises(ModelCacheError) as exc_info:
+        cache.prepare(_embedding_manifest(), bad)
+
+    assert exc_info.value.code is RagErrorCode.MODEL_INTEGRITY_FAILED
+    assert events[-1].phase is RagPhase.FAILED
+    assert events[-1].error_code is RagErrorCode.MODEL_INTEGRITY_FAILED
+
+
 def test_offline_missing_cache_has_explicit_error(tmp_path: Path) -> None:
     manifest = _embedding_manifest()
     cache = ModelCache(tmp_path)
@@ -196,6 +245,24 @@ def test_offline_missing_cache_has_explicit_error(tmp_path: Path) -> None:
         cache.prepare(manifest, FakeDownloader({}), offline=True)
 
     assert exc_info.value.code is RagErrorCode.MODEL_MISSING
+
+
+def test_offline_missing_cache_publishes_safe_failed_prepare_event(tmp_path: Path) -> None:
+    events: list[RagProgressEvent] = []
+    cache = ModelCache(
+        tmp_path,
+        progress=events.append,
+        operation_id_factory=lambda: OperationId("a" * 32),
+    )
+
+    with pytest.raises(ModelCacheError) as exc_info:
+        cache.prepare(_embedding_manifest(), FakeDownloader({}), offline=True)
+
+    assert exc_info.value.code is RagErrorCode.MODEL_MISSING
+    assert events[-1].phase is RagPhase.FAILED
+    assert events[-1].state is RagProgressState.FAILED
+    assert events[-1].error_code is RagErrorCode.MODEL_MISSING
+    assert str(tmp_path) not in str(events[-1].to_public_dict())
 
 
 def test_admin_prefetch_uses_pinned_huggingface_artifacts(tmp_path: Path) -> None:
