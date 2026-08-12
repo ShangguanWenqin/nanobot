@@ -59,8 +59,8 @@
 
 ## 8. 持久化入库与删除任务
 
-- [ ] 8.1 编写状态机转换测试，实现持久化的 queued、parsing、chunking、embedding、indexing、ready、failed 和 deleting 阶段，并记录安全错误和时间戳。
-- [ ] 8.2 实现启动任务恢复、最多两次的临时错误退避重试、永久错误分类、阶段产物校验和过期工作目录清理。
+- [x] 8.1 编写状态机转换测试，实现持久化的 queued、parsing、chunking、embedding、indexing、ready、failed 和 deleting 阶段，并记录安全错误和时间戳。
+- [x] 8.2 实现启动任务恢复、最多两次的临时错误退避重试、永久错误分类、阶段产物校验和过期工作目录清理。
 - [ ] 8.3 实现完整 `/rag add` Service：全收或全拒校验与预占、原始文件复制、解析、切片、本地 Embedding、暂存索引、校验、就绪发布和配额提交。
 - [ ] 8.4 编写长时间入库并发测试，实现有界批次 Yield 和交互式 Embedding/Reranker 优先调度。
 - [ ] 8.5 实现删除流程：立即排除检索，随后持久删除原始文件、Chunk、FTS 和向量，释放配额，失败可重试，并覆盖未知/其他主体 ID 隐私测试。
