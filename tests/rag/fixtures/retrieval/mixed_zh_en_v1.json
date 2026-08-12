@@ -1,0 +1,29 @@
+{
+  "version": "mixed-zh-en-v1",
+  "cases": [
+    {
+      "id": "install-macos",
+      "query": "在 macOS 上如何安装？",
+      "relevant_document_ids": ["setup-guide"],
+      "answerable": true
+    },
+    {
+      "id": "exact-identifier",
+      "query": "What does ABC_123 configure?",
+      "relevant_document_ids": ["config-reference"],
+      "answerable": true
+    },
+    {
+      "id": "mixed-query",
+      "query": "hybrid 检索的默认 top-k 是多少？",
+      "relevant_document_ids": ["retrieval-design"],
+      "answerable": true
+    },
+    {
+      "id": "no-answer-weather",
+      "query": "明天北京天气如何？",
+      "relevant_document_ids": [],
+      "answerable": false
+    }
+  ]
+}

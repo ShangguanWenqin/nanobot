@@ -1,0 +1,23 @@
+{
+  "corpus_version": "mixed-zh-en-v1",
+  "results": {
+    "lexical": {
+      "install-macos": [{"document_id": "setup-guide", "score": 0.82, "citation_correct": true}],
+      "exact-identifier": [{"document_id": "config-reference", "score": 0.93, "citation_correct": true}],
+      "mixed-query": [],
+      "no-answer-weather": []
+    },
+    "dense": {
+      "install-macos": [{"document_id": "setup-guide", "score": 0.88, "citation_correct": true}],
+      "exact-identifier": [],
+      "mixed-query": [{"document_id": "retrieval-design", "score": 0.86, "citation_correct": true}],
+      "no-answer-weather": []
+    },
+    "hybrid": {
+      "install-macos": [{"document_id": "setup-guide", "score": 0.94, "citation_correct": true}],
+      "exact-identifier": [{"document_id": "config-reference", "score": 0.96, "citation_correct": true}],
+      "mixed-query": [{"document_id": "retrieval-design", "score": 0.91, "citation_correct": true}],
+      "no-answer-weather": []
+    }
+  }
+}
