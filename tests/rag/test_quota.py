@@ -70,6 +70,19 @@ def test_reservation_is_idempotent_and_commit_transfers_bytes(tmp_path: Path) ->
     assert committed.committed_bytes == 40
 
 
+def test_batch_reservation_is_atomic_and_rejects_duplicate_ids(tmp_path: Path) -> None:
+    manager = _manager(tmp_path, limit=1_000)
+
+    usage = manager.reserve_batch((("1" * 32, 300), ("2" * 32, 400)))
+
+    assert usage.reserved_bytes == 700
+    with pytest.raises(RagQuotaError):
+        manager.reserve_batch((("3" * 32, 200), ("4" * 32, 200)))
+    assert manager.usage().reserved_bytes == 700
+    with pytest.raises(ValueError, match="unique"):
+        manager.reserve_batch((("5" * 32, 10), ("5" * 32, 10)))
+
+
 def test_failure_release_and_document_delete_release_usage(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     manager.reserve("1" * 32, 30)

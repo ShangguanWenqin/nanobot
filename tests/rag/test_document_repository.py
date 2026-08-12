@@ -182,3 +182,26 @@ def test_reservation_size_mismatch_does_not_publish_partial_file(tmp_path: Path)
 
     assert not (repository.store.paths.originals / ("1" * 32)).exists()
     assert quota.usage().reserved_bytes == 4
+
+
+def test_original_publication_can_defer_quota_commit_until_index_is_ready(
+    tmp_path: Path,
+) -> None:
+    repository, quota = _components(tmp_path, "a")
+    source = tmp_path / "upload.txt"
+    source.write_bytes(b"knowledge")
+    quota.reserve("2" * 32, source.stat().st_size)
+
+    accepted = repository.accept_original(
+        source,
+        document_id="1" * 32,
+        job_id="3" * 32,
+        reservation_id="2" * 32,
+        display_name="upload.txt",
+        mime_type="text/plain",
+        defer_quota_commit=True,
+    )
+
+    assert accepted.duplicate is False
+    assert quota.usage().committed_bytes == 0
+    assert quota.usage().reserved_bytes == len(b"knowledge")

@@ -97,6 +97,39 @@ def test_vector_and_sqlite_chunk_keys_must_match(tmp_path: Path) -> None:
     assert not store.paths.vector_path(generation).exists()
 
 
+def test_new_generation_can_include_existing_and_new_chunks_without_mutating_old(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    first = "2" * 32
+    second = "3" * 32
+    _insert_chunks(store, first, [10])
+    _insert_chunks(store, second, [20])
+    repository = VectorGenerationRepository(store, dimension=2)
+    repository.set_generation_members(first, (10,))
+    repository.set_generation_members(second, (10, 20))
+
+    repository.build_generation(first, "e5-v1", {10: (1.0, 0.0)})
+    repository.build_generation(
+        second,
+        "e5-v1",
+        {10: (1.0, 0.0), 20: (0.0, 1.0)},
+    )
+
+    with store.connect() as connection:
+        first_keys = connection.execute(
+            "SELECT chunk_key FROM generation_chunks WHERE generation_id = ?",
+            (first,),
+        ).fetchall()
+        second_keys = connection.execute(
+            "SELECT chunk_key FROM generation_chunks WHERE generation_id = ? "
+            "ORDER BY chunk_key",
+            (second,),
+        ).fetchall()
+    assert [int(row[0]) for row in first_keys] == [10]
+    assert [int(row[0]) for row in second_keys] == [10, 20]
+
+
 def test_corrupt_generation_cannot_replace_active_manifest(tmp_path: Path) -> None:
     store = _store(tmp_path)
     first = "2" * 32
@@ -112,6 +145,36 @@ def test_corrupt_generation_cannot_replace_active_manifest(tmp_path: Path) -> No
 
     with repository.pin_active() as pinned:
         assert pinned.generation_id == first
+
+
+def test_activation_callback_and_manifest_publish_in_one_transaction(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    generation = "2" * 32
+    _insert_chunks(store, generation, [10])
+    repository = VectorGenerationRepository(store, dimension=2)
+    repository.build_generation(generation, "e5-v1", {10: (1.0, 0.0)})
+
+    def fail_publication(connection: object) -> None:
+        del connection
+        raise RuntimeError("simulated publication crash")
+
+    with pytest.raises(RuntimeError, match="publication crash"):
+        repository.activate_generation(
+            generation,
+            "e5-v1",
+            transaction_callback=fail_publication,
+        )
+
+    with store.connect() as connection:
+        manifest = connection.execute(
+            "SELECT active_generation_id FROM store_manifest WHERE singleton = 1"
+        ).fetchone()
+        state = connection.execute(
+            "SELECT state FROM vector_generations WHERE generation_id = ?",
+            (generation,),
+        ).fetchone()
+    assert manifest[0] is None
+    assert state[0] == "built"
 
 
 def test_reconcile_missing_active_vector_requests_safe_rebuild(tmp_path: Path) -> None:

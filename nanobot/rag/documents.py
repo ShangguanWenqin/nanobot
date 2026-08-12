@@ -38,6 +38,7 @@ class DocumentRepository:
         reservation_id: str,
         display_name: str,
         mime_type: str,
+        defer_quota_commit: bool = False,
     ) -> AcceptedOriginal:
         source_path = Path(source)
         if source_path.is_symlink() or not source_path.is_file():
@@ -64,6 +65,7 @@ class DocumentRepository:
                 mime_type=mime_type,
                 original_bytes=copied_bytes,
                 content_sha256=digest.hexdigest(),
+                defer_quota_commit=defer_quota_commit,
             )
             return accepted
         finally:
@@ -80,6 +82,7 @@ class DocumentRepository:
         mime_type: str,
         original_bytes: int,
         content_sha256: str,
+        defer_quota_commit: bool,
     ) -> AcceptedOriginal:
         destination: Path | None = None
         try:
@@ -142,7 +145,8 @@ class DocumentRepository:
                         relative_path,
                     ),
                 )
-                self._commit_reservation(connection, reservation_id, reserved_bytes)
+                if not defer_quota_commit:
+                    self._commit_reservation(connection, reservation_id, reserved_bytes)
 
             return AcceptedOriginal(
                 document_id=DocumentId(document_id),

@@ -95,6 +95,44 @@ class QuotaManager:
             )
             return self._read_usage(connection)
 
+    def reserve_batch(self, reservations: tuple[tuple[str, int], ...]) -> QuotaUsage:
+        if not reservations:
+            raise ValueError("quota reservation batch must not be empty")
+        if len({reservation_id for reservation_id, _ in reservations}) != len(reservations):
+            raise ValueError("quota reservation IDs must be unique within a batch")
+        for reservation_id, byte_count in reservations:
+            self._validate_reservation(reservation_id, byte_count)
+        total = sum(byte_count for _, byte_count in reservations)
+        with self._store.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            placeholders = ",".join("?" for _ in reservations)
+            existing = connection.execute(
+                f"SELECT reservation_id FROM quota_reservations "
+                f"WHERE reservation_id IN ({placeholders})",
+                tuple(reservation_id for reservation_id, _ in reservations),
+            ).fetchall()
+            if existing:
+                raise ValueError("quota reservation ID already exists")
+            self._enforce_host_guards(total)
+            usage = self._read_usage(connection)
+            if usage.total_bytes + total > self._quota_bytes:
+                raise RagQuotaError(RagErrorCode.QUOTA_EXCEEDED, "RAG 原始文件配额不足")
+            created_at = int(time.time())
+            connection.executemany(
+                "INSERT INTO quota_reservations "
+                "(reservation_id, reserved_bytes, created_at) VALUES (?, ?, ?)",
+                (
+                    (reservation_id, byte_count, created_at)
+                    for reservation_id, byte_count in reservations
+                ),
+            )
+            connection.execute(
+                "UPDATE quota_ledger SET reserved_bytes = reserved_bytes + ? "
+                "WHERE singleton = 1",
+                (total,),
+            )
+            return self._read_usage(connection)
+
     def commit(self, reservation_id: str) -> QuotaUsage:
         self._validate_reservation_id(reservation_id)
         with self._store.connect() as connection:

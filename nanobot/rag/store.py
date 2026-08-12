@@ -12,7 +12,7 @@ from pathlib import Path
 from nanobot.rag.identity import principal_directory_name
 from nanobot.rag.types import PrincipalId
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SYSTEM_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 _UNSAFE_FILENAME = re.compile(r"[^\w.()\-]+", flags=re.UNICODE)
 
@@ -140,6 +140,19 @@ CREATE TABLE chunks (
     UNIQUE(document_id, ordinal, generation_id)
 );
 
+CREATE TABLE generation_chunks (
+    generation_id TEXT NOT NULL,
+    chunk_key INTEGER NOT NULL REFERENCES chunks(chunk_key) ON DELETE CASCADE,
+    PRIMARY KEY(generation_id, chunk_key)
+);
+
+CREATE TRIGGER chunks_generation_membership_after_insert
+AFTER INSERT ON chunks
+BEGIN
+    INSERT OR IGNORE INTO generation_chunks(generation_id, chunk_key)
+    VALUES (NEW.generation_id, NEW.chunk_key);
+END;
+
 CREATE TABLE vector_generations (
     generation_id TEXT PRIMARY KEY,
     embedding_profile_id TEXT NOT NULL,
@@ -195,8 +208,29 @@ INSERT INTO quota_ledger(singleton, committed_bytes, reserved_bytes) VALUES (1, 
 INSERT INTO store_manifest(
     singleton, schema_version, active_generation_id, embedding_profile_id,
     lexical_analyzer_version, chunking_version, updated_at
-) VALUES (1, 1, NULL, NULL, NULL, NULL, 0);
-PRAGMA user_version = 1;
+) VALUES (1, 2, NULL, NULL, NULL, NULL, 0);
+PRAGMA user_version = 2;
+"""
+
+_MIGRATE_V1_TO_V2_SQL = """
+CREATE TABLE generation_chunks (
+    generation_id TEXT NOT NULL,
+    chunk_key INTEGER NOT NULL REFERENCES chunks(chunk_key) ON DELETE CASCADE,
+    PRIMARY KEY(generation_id, chunk_key)
+);
+
+INSERT INTO generation_chunks(generation_id, chunk_key)
+SELECT generation_id, chunk_key FROM chunks;
+
+CREATE TRIGGER chunks_generation_membership_after_insert
+AFTER INSERT ON chunks
+BEGIN
+    INSERT OR IGNORE INTO generation_chunks(generation_id, chunk_key)
+    VALUES (NEW.generation_id, NEW.chunk_key);
+END;
+
+UPDATE store_manifest SET schema_version = 2 WHERE singleton = 1;
+PRAGMA user_version = 2;
 """
 
 
@@ -227,6 +261,8 @@ class RagStore:
                     raise StoreSchemaError("RAG store schema is newer than this runtime")
                 if version == 0:
                     connection.executescript(_SCHEMA_SQL)
+                elif version == 1:
+                    connection.executescript(_MIGRATE_V1_TO_V2_SQL)
                 elif version < SCHEMA_VERSION:
                     raise StoreSchemaError("RAG store requires an unavailable migration")
                 connection.execute("PRAGMA journal_mode = WAL")

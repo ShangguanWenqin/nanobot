@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import threading
 import time
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,6 +89,36 @@ class VectorGenerationRepository:
         self._reader_counts: dict[str, int] = {}
         self._lock = threading.RLock()
 
+    def set_generation_members(
+        self,
+        generation_id: str,
+        chunk_keys: Sequence[int],
+    ) -> None:
+        self.store.paths.vector_path(generation_id)
+        keys = tuple(chunk_keys)
+        if len(keys) != len(set(keys)) or any(key < 0 for key in keys):
+            raise ValueError("generation chunk keys must be unique non-negative integers")
+        with self.store.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing: set[int] = {
+                int(row[0])
+                for row in connection.execute(
+                    "SELECT chunk_key FROM chunks WHERE chunk_key IN "
+                    f"({','.join('?' for _ in keys)})",
+                    keys,
+                ).fetchall()
+            } if keys else set()
+            if existing != set(keys):
+                raise VectorConsistencyError("generation members must reference existing chunks")
+            connection.execute(
+                "DELETE FROM generation_chunks WHERE generation_id = ?",
+                (generation_id,),
+            )
+            connection.executemany(
+                "INSERT INTO generation_chunks(generation_id, chunk_key) VALUES (?, ?)",
+                ((generation_id, key) for key in keys),
+            )
+
     def build_generation(
         self,
         generation_id: str,
@@ -148,6 +179,8 @@ class VectorGenerationRepository:
         self,
         generation_id: str,
         embedding_profile_id: str,
+        *,
+        transaction_callback: Callable[[sqlite3.Connection], None] | None = None,
     ) -> None:
         path = self.store.paths.vector_path(generation_id)
         with self._lock:
@@ -181,6 +214,30 @@ class VectorGenerationRepository:
                     "embedding_profile_id = ?, updated_at = ? WHERE singleton = 1",
                     (generation_id, embedding_profile_id, int(time.time())),
                 )
+                if transaction_callback is not None:
+                    transaction_callback(connection)
+
+    def discard_generation(self, generation_id: str) -> None:
+        path = self.store.paths.vector_path(generation_id)
+        with self._lock:
+            with self.store.connect() as connection:
+                row = connection.execute(
+                    "SELECT active_generation_id FROM store_manifest WHERE singleton = 1"
+                ).fetchone()
+                if row is not None and row[0] == generation_id:
+                    raise VectorConsistencyError("cannot discard the active vector generation")
+                connection.execute(
+                    "DELETE FROM vector_generations WHERE generation_id = ?",
+                    (generation_id,),
+                )
+                connection.execute(
+                    "DELETE FROM generation_chunks WHERE generation_id = ?",
+                    (generation_id,),
+                )
+            if path.exists():
+                if path.is_symlink() or not path.is_file():
+                    raise VectorConsistencyError("refusing to discard unsafe vector path")
+                path.unlink()
 
     @contextmanager
     def pin_active(self) -> Generator[PinnedVectorGeneration]:
@@ -246,6 +303,10 @@ class VectorGenerationRepository:
                     connection.execute(
                         "UPDATE vector_generations SET state = 'collected' "
                         "WHERE generation_id = ?",
+                        (generation_id,),
+                    )
+                    connection.execute(
+                        "DELETE FROM generation_chunks WHERE generation_id = ?",
                         (generation_id,),
                     )
                 collected.append(generation_id)
@@ -342,7 +403,8 @@ class VectorGenerationRepository:
         self.store.paths.vector_path(generation_id)
         with self.store.connect() as connection:
             rows = connection.execute(
-                "SELECT chunk_key FROM chunks WHERE generation_id = ? ORDER BY chunk_key",
+                "SELECT chunk_key FROM generation_chunks "
+                "WHERE generation_id = ? ORDER BY chunk_key",
                 (generation_id,),
             ).fetchall()
         return {int(row[0]) for row in rows}

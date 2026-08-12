@@ -153,6 +153,25 @@ async def test_local_embedder_applies_e5_prefix_pooling_normalization_and_batche
 
 
 @pytest.mark.asyncio
+async def test_local_embedder_does_not_duplicate_prebuilt_e5_prefixes(tmp_path: Path) -> None:
+    tokenizer = RecordingTokenizer()
+    runtime = LocalEmbedder(
+        _manifest("embedding"),
+        tmp_path,
+        tokenizer=tokenizer,
+        session=EmbeddingSession(),
+    )
+
+    await runtime.embed_query("query: bounded question")
+    await runtime.embed_passages(("passage: bounded evidence",))
+
+    assert tokenizer.text_batches == [
+        ("query: bounded question",),
+        ("passage: bounded evidence",),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_local_reranker_pair_scores_are_finite_normalized_and_thresholded(
     tmp_path: Path,
 ) -> None:

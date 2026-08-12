@@ -82,3 +82,20 @@ def test_empty_or_punctuation_only_query_returns_no_hits(tmp_path: Path) -> None
     repository.rebuild_generation("2" * 32)
 
     assert repository.search("... ---", generation_id="2" * 32, limit=10) == ()
+
+
+def test_lexical_generation_membership_can_include_chunk_created_in_older_generation(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    with repository.store.connect() as connection:
+        connection.executemany(
+            "INSERT INTO generation_chunks (generation_id, chunk_key) VALUES (?, ?)",
+            (("3" * 32, 10), ("3" * 32, 20)),
+        )
+
+    repository.rebuild_generation("3" * 32)
+
+    assert repository.search(
+        "知识库", generation_id="3" * 32, limit=10
+    )[0].chunk_key == 10

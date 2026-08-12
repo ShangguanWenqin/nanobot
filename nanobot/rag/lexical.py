@@ -66,14 +66,14 @@ class LexicalRepository:
         self._validate_generation_id(generation_id)
         with self.store.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute("DELETE FROM chunks_fts")
             rows = connection.execute(
-                "SELECT chunk_key, text FROM chunks WHERE generation_id = ? "
-                "ORDER BY chunk_key",
+                "SELECT c.chunk_key, c.text FROM generation_chunks AS gc "
+                "JOIN chunks AS c ON c.chunk_key = gc.chunk_key "
+                "WHERE gc.generation_id = ? ORDER BY c.chunk_key",
                 (generation_id,),
             ).fetchall()
             connection.executemany(
-                "INSERT INTO chunks_fts(rowid, lexical_text) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO chunks_fts(rowid, lexical_text) VALUES (?, ?)",
                 (
                     (int(row[0]), self.analyzer.normalize(str(row[1])))
                     for row in rows
@@ -107,8 +107,9 @@ class LexicalRepository:
                 "bm25(chunks_fts) AS lexical_score "
                 "FROM chunks_fts "
                 "JOIN chunks AS c ON c.chunk_key = chunks_fts.rowid "
+                "JOIN generation_chunks AS gc ON gc.chunk_key = c.chunk_key "
                 "JOIN documents AS d ON d.document_id = c.document_id "
-                "WHERE chunks_fts MATCH ? AND c.generation_id = ? "
+                "WHERE chunks_fts MATCH ? AND gc.generation_id = ? "
                 "AND d.status = 'ready' "
                 "ORDER BY lexical_score ASC, c.chunk_key ASC LIMIT ?",
                 (fts_query, generation_id, limit),

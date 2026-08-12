@@ -238,7 +238,8 @@ class LocalEmbedder(_BoundedRuntime):
     async def embed_query(self, text: str) -> tuple[float, ...]:
         if not text.strip():
             raise ValueError("embedding query must not be empty")
-        vectors = await self._embed_batch((f"query: {text}",))
+        prepared = text if text.startswith("query: ") else f"query: {text}"
+        vectors = await self._embed_batch((prepared,))
         return vectors[0]
 
     async def embed_passages(
@@ -248,7 +249,10 @@ class LocalEmbedder(_BoundedRuntime):
         if any(not text.strip() for text in texts):
             raise ValueError("embedding passages must not be empty")
         results: list[tuple[float, ...]] = []
-        prefixed = tuple(f"passage: {text}" for text in texts)
+        prefixed = tuple(
+            text if text.startswith("passage: ") else f"passage: {text}"
+            for text in texts
+        )
         for start in range(0, len(prefixed), self.batch_size):
             results.extend(await self._embed_batch(prefixed[start : start + self.batch_size]))
         return tuple(results)
