@@ -41,11 +41,11 @@
 
 ## 6. 固定版本的本地 CPU 推理
 
-- [ ] 6.1 为 `intfloat/multilingual-e5-small` 和 `BAAI/bge-reranker-base` 创建不可变 Manifest，包含产物哈希、Tokenizer、Pooling、归一化、维度、精度、许可证、固定样例输出和标定阈值字段。
-- [ ] 6.2 先编写缓存完整性与并发测试，再实现加锁下载到临时路径、哈希校验、模型缓存原子发布、离线错误和管理员预取。
-- [ ] 6.3 为真实与 Fake Embedder 编写契约测试；实现 ONNX CPU 查询与批量 Embedding、正确的 E5 Pooling/归一化、批处理、取消边界和 Profile 签名。
-- [ ] 6.4 为真实与 Fake Reranker 编写契约测试；实现 ONNX CPU Pair 打分、批处理、规范化分数、标定阈值和有界并发。
-- [ ] 6.5 验证模型加载始终禁用远程仓库代码，并且任何 Embedding 或 Reranker 失败路径都不能调用第三方推理服务。
+- [x] 6.1 为 `intfloat/multilingual-e5-small` 和 `BAAI/bge-reranker-base` 创建不可变 Manifest，包含产物哈希、Tokenizer、Pooling、归一化、维度、精度、许可证、固定样例输出和标定阈值字段。
+- [x] 6.2 先编写缓存完整性与并发测试，再实现加锁下载到临时路径、哈希校验、模型缓存原子发布、离线错误和管理员预取。
+- [x] 6.3 为真实与 Fake Embedder 编写契约测试；实现 ONNX CPU 查询与批量 Embedding、正确的 E5 Pooling/归一化、批处理、取消边界和 Profile 签名。
+- [x] 6.4 为真实与 Fake Reranker 编写契约测试；实现 ONNX CPU Pair 打分、批处理、规范化分数、标定阈值和有界并发。
+- [x] 6.5 验证模型加载始终禁用远程仓库代码，并且任何 Embedding 或 Reranker 失败路径都不能调用第三方推理服务。
 
 ## 7. 硬件感知的运行时优化
 
