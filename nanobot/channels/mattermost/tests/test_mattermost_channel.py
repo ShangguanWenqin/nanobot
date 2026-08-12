@@ -18,6 +18,7 @@ from nanobot.channels.mattermost.runtime import (
     MattermostChannel,
     MattermostConfig,
 )
+from nanobot.channels.private_rag import mattermost_rag_capabilities
 from nanobot.pairing import PAIRING_CODE_META_KEY
 
 
@@ -943,6 +944,7 @@ async def test_action_event():
             chat_id="c1",
             content="Approve",
             metadata={"mattermost": {"channel_type": "public", "is_action": True}},
+            capabilities=mattermost_rag_capabilities("public", user_id="u1"),
         )
 
 

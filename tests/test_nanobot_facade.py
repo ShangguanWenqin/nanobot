@@ -318,7 +318,15 @@ async def test_run_exposes_attributes_to_context_provider_without_persisting_the
     )
 
     assert result.content == "done"
-    assert seen[0].attributes == {"tenant": "acme"}
+    assert seen[0].attributes == {
+        "tenant": "acme",
+        "rag_capabilities": {
+            "conversation_scope": "unknown",
+            "stable_authenticated_sender": False,
+            "authenticated_sender_id": None,
+            "document_attachments": False,
+        },
+    }
     assert seen[0].metadata == {}
     snapshot = bot.sessions.export("sdk:attributes")
     assert snapshot is not None
