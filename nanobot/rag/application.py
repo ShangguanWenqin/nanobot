@@ -20,6 +20,7 @@ from nanobot.rag.retrieval import HybridRetriever
 from nanobot.rag.types import (
     DocumentId,
     JobId,
+    JobPhase,
     OperationId,
     PrincipalId,
     RagErrorCode,
@@ -72,9 +73,29 @@ class ServiceBackedRagApplication:
         service = self._resolve(context.principal_id).ingestion
         accepted = await service.accept_batch(context, attachments)
         lines = ["已接受私人知识库入库任务："]
-        for item in accepted.items:
+        for index, item in enumerate(accepted.items):
             if item.job_id is not None:
-                self._schedule(service.process_job(item.job_id))
+                filename = attachments[index].display_name if index < len(attachments) else None
+                operation_id = OperationId(str(item.job_id))
+                await self._notify(
+                    context,
+                    self._job_event(
+                        operation_id,
+                        RagOperation.INGEST,
+                        JobPhase.QUEUED,
+                        item.document_id,
+                        filename,
+                        None,
+                    ),
+                )
+                self._schedule(
+                    service.process_job(
+                        item.job_id,
+                        on_phase=self._job_callback(
+                            context, operation_id, RagOperation.INGEST, filename
+                        ),
+                    )
+                )
             state = "已存在，无需重复入库" if item.duplicate else "排队处理中"
             job = str(item.job_id) if item.job_id is not None else "-"
             lines.append(f"- 文档 `{item.document_id}`；任务 `{job}`；{state}")
@@ -113,7 +134,26 @@ class ServiceBackedRagApplication:
         job_id = service.request_delete(context, document_id)
         if job_id is None:
             return "未找到可删除的文档；其他用户的文档也不会被披露。"
-        self._schedule(service.process_job(job_id))
+        operation_id = OperationId(str(job_id))
+        await self._notify(
+            context,
+            self._job_event(
+                operation_id,
+                RagOperation.DELETE,
+                JobPhase.QUEUED,
+                document_id,
+                None,
+                None,
+            ),
+        )
+        self._schedule(
+            service.process_job(
+                job_id,
+                on_phase=self._job_callback(
+                    context, operation_id, RagOperation.DELETE, None
+                ),
+            )
+        )
         return f"已隐藏文档 `{document_id}`，后台删除任务为 `{job_id}`。"
 
     async def search(self, context: RagRequestContext, question: str) -> RagSearchResult:
@@ -185,6 +225,78 @@ class ServiceBackedRagApplication:
             ),
         )
         return result
+
+    def _job_callback(
+        self,
+        context: RagRequestContext,
+        operation_id: OperationId,
+        operation: RagOperation,
+        filename: str | None,
+    ):
+        async def on_phase(
+            phase: JobPhase,
+            document_id: DocumentId | None,
+            error_code: RagErrorCode | None,
+        ) -> None:
+            await self._notify(
+                context,
+                self._job_event(
+                    operation_id,
+                    operation,
+                    phase,
+                    document_id,
+                    filename,
+                    error_code,
+                ),
+            )
+
+        return on_phase
+
+    @staticmethod
+    def _job_event(
+        operation_id: OperationId,
+        operation: RagOperation,
+        phase: JobPhase,
+        document_id: DocumentId | None,
+        filename: str | None,
+        error_code: RagErrorCode | None,
+    ) -> RagProgressEvent:
+        rag_phase = (
+            RagPhase.COMPLETED
+            if phase is JobPhase.READY
+            else RagPhase.FAILED
+            if phase is JobPhase.FAILED
+            else RagPhase(phase.value)
+        )
+        state = (
+            RagProgressState.COMPLETED
+            if phase is JobPhase.READY
+            else RagProgressState.FAILED
+            if phase is JobPhase.FAILED
+            else RagProgressState.QUEUED
+            if phase is JobPhase.QUEUED
+            else RagProgressState.RUNNING
+        )
+        labels = {
+            JobPhase.QUEUED: "已排队",
+            JobPhase.PARSING: "正在解析文档",
+            JobPhase.CHUNKING: "正在切分文档",
+            JobPhase.EMBEDDING: "正在生成本地 Embedding",
+            JobPhase.INDEXING: "正在建立知识库索引",
+            JobPhase.DELETING: "正在删除知识库文档",
+            JobPhase.READY: "RAG 任务已完成",
+            JobPhase.FAILED: "RAG 任务失败",
+        }
+        return RagProgressEvent(
+            operation_id=operation_id,
+            operation=operation,
+            phase=rag_phase,
+            state=state,
+            document_id=document_id,
+            filename=filename,
+            error_code=error_code if state is RagProgressState.FAILED else None,
+            fallback_text=labels[phase] + "。",
+        )
 
     def _new_operation_id(self) -> str:
         if self._id_factory is not None:

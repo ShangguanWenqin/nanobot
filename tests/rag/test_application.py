@@ -20,6 +20,7 @@ from nanobot.rag.types import (
     DocumentId,
     DocumentStatus,
     JobId,
+    JobPhase,
     PrincipalId,
     RagRequestContext,
     RagSearchResult,
@@ -54,8 +55,11 @@ class _Ingestion:
             )
         )
 
-    async def process_job(self, job_id):
+    async def process_job(self, job_id, *, on_phase=None):
         self.processed.append(job_id)
+        if on_phase is not None:
+            await on_phase(JobPhase.PARSING, DocumentId("a" * 32), None)
+            await on_phase(JobPhase.READY, DocumentId("a" * 32), None)
 
 
 class _Deletion:
@@ -66,8 +70,11 @@ class _Deletion:
         del context, document_id
         return JobId("c" * 32)
 
-    async def process_job(self, job_id):
+    async def process_job(self, job_id, *, on_phase=None):
         self.processed.append(job_id)
+        if on_phase is not None:
+            await on_phase(JobPhase.DELETING, None, None)
+            await on_phase(JobPhase.READY, None, None)
 
 
 class _Status:
@@ -140,6 +147,38 @@ async def test_application_resolves_only_current_principal_and_schedules_jobs() 
     assert "c" * 32 in deleted
     assert ingestion.processed == [JobId("b" * 32)]
     assert deletion.processed == [JobId("c" * 32)]
+
+
+@pytest.mark.asyncio
+async def test_application_publishes_ingestion_and_deletion_job_lifecycle() -> None:
+    ingestion = _Ingestion()
+    deletion = _Deletion()
+    services = PrincipalRagServices(ingestion, deletion, _Status(), _Retrieval())
+    scheduled = []
+    events: list[RagProgressEvent] = []
+
+    async def progress(_context, event):
+        events.append(event)
+
+    application = ServiceBackedRagApplication(
+        lambda _principal: services,
+        schedule=scheduled.append,
+        progress=progress,
+    )
+
+    await application.add(_context(), ())
+    await application.delete(_context(), DocumentId("a" * 32))
+    for awaitable in scheduled:
+        await awaitable
+
+    assert [(event.operation.value, event.phase.value) for event in events] == [
+        ("ingest", "queued"),
+        ("delete", "queued"),
+        ("ingest", "parsing"),
+        ("ingest", "completed"),
+        ("delete", "deleting"),
+        ("delete", "completed"),
+    ]
 
 
 @pytest.mark.asyncio

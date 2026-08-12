@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 from nanobot.bus.events import ConversationScope
@@ -19,12 +19,18 @@ from nanobot.rag.types import (
     JobId,
     JobOperation,
     JobPhase,
+    RagErrorCode,
     RagJob,
     RagRequestContext,
     SourceKind,
     SourceLocation,
 )
 from nanobot.rag.vector_store import VectorGenerationRepository
+
+JobPhaseCallback = Callable[
+    [JobPhase, DocumentId | None, RagErrorCode | None],
+    Awaitable[None],
+]
 
 
 class RagDeletionService:
@@ -92,7 +98,12 @@ class RagDeletionService:
             )
         return job_id
 
-    async def process_job(self, job_id: JobId) -> RagJob:
+    async def process_job(
+        self,
+        job_id: JobId,
+        *,
+        on_phase: JobPhaseCallback | None = None,
+    ) -> RagJob:
         generation_id: str | None = None
         try:
             job = self.jobs.get(job_id)
@@ -100,6 +111,7 @@ class RagDeletionService:
                 raise ValueError("deletion job has no document")
             if job.phase is JobPhase.QUEUED:
                 self.jobs.transition(job_id, JobPhase.DELETING)
+                await _notify_phase(on_phase, JobPhase.DELETING, job.document_id, None)
             elif job.phase is not JobPhase.DELETING:
                 raise ValueError("deletion job is not active")
             document_id = job.document_id
@@ -132,7 +144,9 @@ class RagDeletionService:
                     document_id,
                 ),
             )
-            return self.jobs.get(job_id)
+            completed = self.jobs.get(job_id)
+            await _notify_phase(on_phase, JobPhase.READY, document_id, None)
+            return completed
         except Exception:
             if generation_id is not None:
                 try:
@@ -142,7 +156,14 @@ class RagDeletionService:
             current = self.jobs.get(job_id)
             if current.phase not in {JobPhase.READY, JobPhase.FAILED}:
                 self.jobs.increment_attempts(job_id)
-            return self.jobs.get(job_id)
+            failed = self.jobs.get(job_id)
+            await _notify_phase(
+                on_phase,
+                failed.phase,
+                failed.document_id,
+                failed.error_code or RagErrorCode.INDEXING_FAILED,
+            )
+            return failed
 
     def _remaining_chunk_rows(self, document_id: DocumentId) -> tuple[sqlite3.Row, ...]:
         with self.store.connect() as connection:
@@ -224,6 +245,20 @@ def _location_from_json(value: str) -> SourceLocation:
         line_start=payload.get("line_start"),
         line_end=payload.get("line_end"),
     )
+
+
+async def _notify_phase(
+    callback: JobPhaseCallback | None,
+    phase: JobPhase,
+    document_id: DocumentId | None,
+    error_code: RagErrorCode | None,
+) -> None:
+    if callback is None:
+        return
+    try:
+        await callback(phase, document_id, error_code)
+    except Exception:
+        pass
 
 
 __all__ = ["RagDeletionService"]

@@ -7,7 +7,7 @@ import hashlib
 import json
 import shutil
 import sqlite3
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -45,6 +45,12 @@ from nanobot.rag.vector_store import VectorGenerationRepository
 
 class DocumentParser(Protocol):
     async def __call__(self, path: Path) -> ParsedDocument: ...
+
+
+JobPhaseCallback = Callable[
+    [JobPhase, DocumentId | None, RagErrorCode | None],
+    Awaitable[None],
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +172,12 @@ class RagIngestionService:
             )
         )
 
-    async def process_job(self, job_id: JobId) -> RagJob:
+    async def process_job(
+        self,
+        job_id: JobId,
+        *,
+        on_phase: JobPhaseCallback | None = None,
+    ) -> RagJob:
         generation_id: str | None = None
         try:
             job = self.jobs.get(job_id)
@@ -177,6 +188,7 @@ class RagIngestionService:
             managed_path = self.store.paths.principal_root / str(document["original_relpath"])
 
             self.jobs.transition(job_id, JobPhase.PARSING)
+            await _notify_phase(on_phase, JobPhase.PARSING, document_id, None)
             parsed = await self.parser(managed_path)
             if parsed.completeness is not ParseCompleteness.COMPLETE:
                 raise RagParseError(
@@ -185,11 +197,13 @@ class RagIngestionService:
                 )
 
             self.jobs.transition(job_id, JobPhase.CHUNKING)
+            await _notify_phase(on_phase, JobPhase.CHUNKING, document_id, None)
             drafts = self.chunker.chunk(parsed.blocks)
             if not drafts:
                 raise RagParseError(RagErrorCode.NO_EXTRACTABLE_TEXT, "文档中没有可提取文本")
 
             self.jobs.transition(job_id, JobPhase.EMBEDDING)
+            await _notify_phase(on_phase, JobPhase.EMBEDDING, document_id, None)
             generation_id = self.id_factory()
             current_rows = tuple(
                 (
@@ -207,6 +221,7 @@ class RagIngestionService:
             self._insert_chunks(current_rows)
 
             self.jobs.transition(job_id, JobPhase.INDEXING)
+            await _notify_phase(on_phase, JobPhase.INDEXING, document_id, None)
             rows = self._indexable_chunk_rows(document_id)
             passages = tuple(
                 self.input_builder.passage(
@@ -237,13 +252,24 @@ class RagIngestionService:
                     generation_id,
                 ),
             )
-            return self.jobs.get(job_id)
+            completed = self.jobs.get(job_id)
+            await _notify_phase(on_phase, JobPhase.READY, document_id, None)
+            return completed
         except RagParseError as exc:
             self._fail_job(job_id, exc.code, generation_id)
-            return self.jobs.get(job_id)
+            failed = self.jobs.get(job_id)
+            await _notify_phase(on_phase, JobPhase.FAILED, failed.document_id, exc.code)
+            return failed
         except Exception:
             self._fail_job(job_id, RagErrorCode.INDEXING_FAILED, generation_id)
-            return self.jobs.get(job_id)
+            failed = self.jobs.get(job_id)
+            await _notify_phase(
+                on_phase,
+                JobPhase.FAILED,
+                failed.document_id,
+                RagErrorCode.INDEXING_FAILED,
+            )
+            return failed
 
     def _preflight(
         self,
@@ -488,6 +514,20 @@ def _location_from_json(value: str) -> SourceLocation:
         line_start=payload.get("line_start"),
         line_end=payload.get("line_end"),
     )
+
+
+async def _notify_phase(
+    callback: JobPhaseCallback | None,
+    phase: JobPhase,
+    document_id: DocumentId | None,
+    error_code: RagErrorCode | None,
+) -> None:
+    if callback is None:
+        return
+    try:
+        await callback(phase, document_id, error_code)
+    except Exception:
+        pass
 
 
 __all__ = [
