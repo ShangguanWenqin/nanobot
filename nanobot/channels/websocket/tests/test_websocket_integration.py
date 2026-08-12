@@ -17,6 +17,8 @@ import websockets
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import ProgressEvent
 from nanobot.channels.websocket.runtime import WebSocketChannel, WebSocketConfig
+from nanobot.rag.progress import RagOperation, RagPhase, RagProgressEvent, RagProgressState
+from nanobot.rag.types import OperationId
 from nanobot.webui.gateway_services import build_gateway_services
 
 from .ws_test_client import WsTestClient, issue_token, issue_token_ok
@@ -237,6 +239,23 @@ async def test_server_send_tags_tool_hint_with_kind(bus: MagicMock) -> None:
             ))
             prog = await c.recv_message()
             assert prog.raw.get("kind") == "progress"
+
+            rag_event = RagProgressEvent(
+                operation_id=OperationId("a" * 32),
+                operation=RagOperation.QUERY,
+                phase=RagPhase.QUERYING,
+                state=RagProgressState.RUNNING,
+                fallback_text="正在从 RAG 知识库中查询…",
+            )
+            await ch.send(OutboundMessage(
+                channel="websocket",
+                chat_id=ready.chat_id,
+                content=rag_event.content,
+                event=rag_event,
+            ))
+            rag = await c.recv_message()
+            assert rag.raw["kind"] == "progress"
+            assert rag.raw["rag_progress"] == rag_event.to_public_dict()
     finally:
         await ch.stop()
         await t

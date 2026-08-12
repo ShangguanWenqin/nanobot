@@ -276,6 +276,20 @@ export interface AgentUIBlob {
   data?: unknown;
 }
 
+export interface RagProgressPayload {
+  kind: "rag_progress";
+  operation_id: string;
+  operation: "ingest" | "query" | "delete" | "model_prepare" | "benchmark";
+  phase: string;
+  state: "queued" | "running" | "completed" | "failed";
+  fallback_text: string;
+  current?: number;
+  total?: number;
+  document_id?: string;
+  filename?: string;
+  error_code?: string;
+}
+
 /** WebSocket snapshot for sustained goals (`goal_state` events; keyed by ``chat_id``). */
 export interface GoalStateWsPayload {
   active: boolean;
@@ -1181,6 +1195,8 @@ export type InboundEvent =
       source?: UIMessageSource;
       /** Optional structured payload on progress frames (channel-specific). */
       agent_ui?: AgentUIBlob;
+      /** Privacy-safe structured local RAG progress. */
+      rag_progress?: RagProgressPayload;
     } & InboundTurnMetadata)
   | ({
       event: "file_edit";

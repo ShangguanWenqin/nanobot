@@ -8,6 +8,7 @@ from nanobot.rag.progress import (
     RagProgressEvent,
     RagProgressPublisher,
     RagProgressState,
+    build_bus_rag_progress_delivery,
 )
 from nanobot.rag.types import DocumentId, OperationId, RagErrorCode
 
@@ -96,3 +97,30 @@ async def test_progress_delivery_failure_is_best_effort() -> None:
     publisher = RagProgressPublisher(fail, min_interval_seconds=0)
 
     assert await publisher.publish(_event()) is False
+
+
+@pytest.mark.asyncio
+async def test_bus_delivery_preserves_route_and_typed_event() -> None:
+    from nanobot.bus.events import ConversationScope
+    from nanobot.bus.queue import MessageBus
+    from nanobot.rag.types import PrincipalId, RagRequestContext
+
+    bus = MessageBus()
+    deliver = build_bus_rag_progress_delivery(bus)
+    context = RagRequestContext(
+        principal_id=PrincipalId("principal"),
+        channel="websocket",
+        sender_id="trusted",
+        chat_id="chat-1",
+        conversation_scope=ConversationScope.PRIVATE,
+        authenticated_sender=True,
+        routing_metadata=(("turn_id", "turn-1"),),
+    )
+
+    await deliver(context, _event())
+    message = await bus.consume_outbound()
+
+    assert message.channel == "websocket"
+    assert message.chat_id == "chat-1"
+    assert message.metadata == {"turn_id": "turn-1"}
+    assert message.event == _event()

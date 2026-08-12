@@ -10,8 +10,23 @@ from typing import Protocol
 from nanobot.rag.deletion import RagDeletionService
 from nanobot.rag.ingestion import IngestionAttachment, RagIngestionService
 from nanobot.rag.library_status import LibraryStatusService
+from nanobot.rag.progress import (
+    RagOperation,
+    RagPhase,
+    RagProgressEvent,
+    RagProgressState,
+)
 from nanobot.rag.retrieval import HybridRetriever
-from nanobot.rag.types import DocumentId, JobId, PrincipalId, RagRequestContext, RagSearchResult
+from nanobot.rag.types import (
+    DocumentId,
+    JobId,
+    OperationId,
+    PrincipalId,
+    RagErrorCode,
+    RagRequestContext,
+    RagSearchResult,
+    SearchStatus,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +42,7 @@ class PrincipalServiceResolver(Protocol):
 
 
 JobScheduler = Callable[[Awaitable[object]], object]
+ProgressDelivery = Callable[[RagRequestContext, RagProgressEvent], Awaitable[None]]
 
 
 class ServiceBackedRagApplication:
@@ -40,9 +56,13 @@ class ServiceBackedRagApplication:
         resolve: PrincipalServiceResolver,
         *,
         schedule: JobScheduler | None = None,
+        progress: ProgressDelivery | None = None,
+        id_factory: Callable[[], str] | None = None,
     ) -> None:
         self._resolve = resolve
         self._schedule = schedule or asyncio.create_task
+        self._progress = progress
+        self._id_factory = id_factory
 
     async def add(
         self,
@@ -97,7 +117,90 @@ class ServiceBackedRagApplication:
         return f"已隐藏文档 `{document_id}`，后台删除任务为 `{job_id}`。"
 
     async def search(self, context: RagRequestContext, question: str) -> RagSearchResult:
-        return await self._resolve(context.principal_id).retrieval.search(question)
+        operation_id = OperationId(self._new_operation_id())
+        await self._notify(
+            context,
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.QUERY,
+                phase=RagPhase.QUERYING,
+                state=RagProgressState.RUNNING,
+                fallback_text="正在从 RAG 知识库中查询…",
+            ),
+        )
+        try:
+            result = await self._resolve(context.principal_id).retrieval.search(question)
+        except Exception:
+            await self._notify(
+                context,
+                RagProgressEvent(
+                    operation_id=operation_id,
+                    operation=RagOperation.QUERY,
+                    phase=RagPhase.FAILED,
+                    state=RagProgressState.FAILED,
+                    error_code=RagErrorCode.INTERNAL_ERROR,
+                    fallback_text="RAG 查询失败，请稍后重试或查看 `/rag status`。",
+                ),
+            )
+            raise
+        if result.status is SearchStatus.UNAVAILABLE:
+            await self._notify(
+                context,
+                RagProgressEvent(
+                    operation_id=operation_id,
+                    operation=RagOperation.QUERY,
+                    phase=RagPhase.FAILED,
+                    state=RagProgressState.FAILED,
+                    error_code=result.reason or RagErrorCode.INTERNAL_ERROR,
+                    fallback_text="RAG 查询当前不可用，请稍后重试或查看 `/rag status`。",
+                ),
+            )
+            return result
+        if result.status is SearchStatus.LEXICAL_DEGRADED:
+            await self._notify(
+                context,
+                RagProgressEvent(
+                    operation_id=operation_id,
+                    operation=RagOperation.QUERY,
+                    phase=RagPhase.DEGRADED,
+                    state=RagProgressState.RUNNING,
+                    fallback_text="RAG 查询已降级为仅关键词模式。",
+                ),
+            )
+        count = len(result.evidence)
+        await self._notify(
+            context,
+            RagProgressEvent(
+                operation_id=operation_id,
+                operation=RagOperation.QUERY,
+                phase=RagPhase.COMPLETED,
+                state=RagProgressState.COMPLETED,
+                current=count,
+                total=max(1, count),
+                fallback_text=(
+                    f"RAG 查询完成，找到 {count} 条可引用证据。"
+                    if count
+                    else "RAG 查询完成，但没有找到充分依据。"
+                ),
+            ),
+        )
+        return result
+
+    def _new_operation_id(self) -> str:
+        if self._id_factory is not None:
+            return self._id_factory()
+        import secrets
+
+        return secrets.token_hex(16)
+
+    async def _notify(self, context: RagRequestContext, event: RagProgressEvent) -> None:
+        if self._progress is None:
+            return
+        try:
+            await self._progress(context, event)
+        except Exception:
+            # Progress is explicitly best-effort and never authoritative.
+            return
 
 
 __all__ = ["PrincipalRagServices", "ServiceBackedRagApplication"]

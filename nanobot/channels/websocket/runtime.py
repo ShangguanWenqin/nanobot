@@ -1493,6 +1493,13 @@ class WebSocketChannel(BaseChannel):
             payload["kind"] = "tool_hint"
         elif progress_event:
             payload["kind"] = "progress"
+            try:
+                from nanobot.rag.progress import RagProgressEvent
+
+                if isinstance(progress_event, RagProgressEvent):
+                    payload["rag_progress"] = progress_event.to_public_dict()
+            except ImportError:
+                pass
         phase = "activity" if payload.get("kind") in ("tool_hint", "progress") else "answer"
         self._persist_turn_transcript_event(
             msg.chat_id,

@@ -11,8 +11,9 @@ from pathlib import PurePath
 
 from loguru import logger
 
-from nanobot.bus.outbound_events import OutboundEvent
-from nanobot.rag.types import DocumentId, OperationId, RagErrorCode
+from nanobot.bus.outbound_events import ProgressEvent, outbound_message_for_event
+from nanobot.bus.queue import MessageBus
+from nanobot.rag.types import DocumentId, OperationId, RagErrorCode, RagRequestContext
 
 _SYSTEM_ID = re.compile(r"[0-9a-f]{32}")
 
@@ -92,8 +93,8 @@ _PHASES_BY_OPERATION: dict[RagOperation, frozenset[RagPhase]] = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class RagProgressEvent(OutboundEvent):
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RagProgressEvent(ProgressEvent):
     operation_id: OperationId
     operation: RagOperation
     phase: RagPhase
@@ -106,6 +107,7 @@ class RagProgressEvent(OutboundEvent):
     error_code: RagErrorCode | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "content", self.fallback_text)
         if _SYSTEM_ID.fullmatch(str(self.operation_id)) is None:
             raise ValueError("operation_id must be a 32-character lowercase hex system ID")
         if self.phase not in _PHASES_BY_OPERATION[self.operation]:
@@ -147,6 +149,7 @@ class RagProgressEvent(OutboundEvent):
 
 
 ProgressDelivery = Callable[[RagProgressEvent], Awaitable[None]]
+RoutedProgressDelivery = Callable[[RagRequestContext, RagProgressEvent], Awaitable[None]]
 
 
 class RagProgressPublisher:
@@ -198,10 +201,27 @@ def _safe_text(value: str) -> str:
     return " ".join(sanitized)[:500] or "RAG 操作状态已更新。"
 
 
+def build_bus_rag_progress_delivery(bus: MessageBus) -> RoutedProgressDelivery:
+    """Project a safe RAG event onto the existing outbound progress bus."""
+
+    async def deliver(context: RagRequestContext, event: RagProgressEvent) -> None:
+        await bus.publish_outbound(
+            outbound_message_for_event(
+                channel=context.channel,
+                chat_id=context.chat_id,
+                event=event,
+                metadata=dict(context.routing_metadata),
+            )
+        )
+
+    return deliver
+
+
 __all__ = [
     "RagOperation",
     "RagPhase",
     "RagProgressEvent",
     "RagProgressPublisher",
     "RagProgressState",
+    "build_bus_rag_progress_delivery",
 ]
