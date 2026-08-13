@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
+from nanobot.agent.loop import AgentLoop
 from nanobot.bus.events import (
     ConversationScope,
     InboundMessage,
     InboundMessageCapabilities,
 )
+from nanobot.bus.queue import MessageBus
 from nanobot.command.builtin import build_help_text, builtin_command_palette
 from nanobot.command.router import CommandContext, CommandRouter
 from nanobot.rag.commands import register_rag_commands
@@ -94,6 +98,33 @@ async def _dispatch(router: CommandRouter, message: InboundMessage):
             loop=SimpleNamespace(),
         )
     )
+
+
+def test_agent_loop_routes_rag_add_before_document_attachment_adaptation(
+    tmp_path: Path,
+) -> None:
+    document = tmp_path / "guide.txt"
+    document.write_text("private guide", encoding="utf-8")
+    application = FakeRagApplication()
+    provider = MagicMock()
+    provider.get_default_model.return_value = "test-model"
+    provider.generation = SimpleNamespace(max_tokens=4096)
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="test-model",
+        rag_application=application,
+    )
+
+    response = asyncio.run(
+        loop._process_message(_message("/rag add", media=[str(document)]))
+    )
+
+    assert response is not None
+    assert "job-1" in response.content
+    assert application.calls[0][0] == "add"
+    assert application.calls[0][2][0].source_path == document
 
 
 @pytest.mark.asyncio

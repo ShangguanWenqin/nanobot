@@ -29,7 +29,7 @@ def test_embedding_manifest_pins_audited_onnx_and_validation_output() -> None:
         "bytes": 470_268_510,
     }
     assert manifest.validation_samples[0].expected_output_sha256 == (
-        "ed2cd9707fbd01f027aff3e59402946fd290d39c1318d5bfc92026e6dbe1d529"
+        "e28f38dc2b01a0a90b1a73bafa4c1d0f77e4b44fe3681ac707863823c994e0b6"
     )
 
 

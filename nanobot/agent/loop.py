@@ -1634,7 +1634,11 @@ class AgentLoop:
         """Restore checkpoint / pending user turn; reference non-image attachments."""
         msg = ctx.msg
 
-        if ctx.kind is TurnKind.USER and msg.media:
+        if (
+            ctx.kind is TurnKind.USER
+            and msg.media
+            and not self.commands.is_dispatchable_command(msg.content)
+        ):
             new_content, image_paths = reference_non_image_attachments(
                 msg.content,
                 msg.media,
