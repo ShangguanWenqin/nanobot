@@ -1,0 +1,66 @@
+name: RAG Real Model Smoke
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    name: CPU real models (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v4
+      - name: Install CPU RAG dependencies
+        run: uv sync --extra rag --dev
+      - name: Run CPU-only real-model smoke
+        run: >-
+          uv run --no-sync python -m scripts.run_rag_smoke
+          --cache-dir .rag-model-cache
+          --provider CPUExecutionProvider
+          --output rag-smoke-${{ runner.os }}-cpu.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rag-smoke-${{ runner.os }}-cpu
+          path: rag-smoke-${{ runner.os }}-cpu.json
+
+  apple:
+    name: Apple Silicon CPU + CoreML
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v4
+      - name: Install Apple RAG dependencies
+        run: uv sync --extra rag --extra rag-apple --dev
+      - name: Run Apple real-model smoke
+        run: >-
+          uv run --no-sync python -m scripts.run_rag_smoke
+          --cache-dir .rag-model-cache
+          --provider CPUExecutionProvider
+          --provider CoreMLExecutionProvider
+          --output rag-smoke-apple.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rag-smoke-apple
+          path: rag-smoke-apple.json
+
+  # NVIDIA, OpenVINO and DirectML require self-hosted release machines with
+  # vendor drivers. The same command is documented in docs/private-rag.md;
+  # their JSON reports are mandatory release evidence when those runners exist.

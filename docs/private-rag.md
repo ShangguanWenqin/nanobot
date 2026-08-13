@@ -57,4 +57,29 @@ RAG 只允许渠道确认的私聊，并以稳定、经过认证的发送者身�
 - 配额不足：删除不需要的文档并等待删除任务完成，或由管理员提高系统配置的用户/全局上限。
 - GPU 未被选择：确认对应 Execution Provider、驱动和运行时已预先安装。自动基准也可能因为结果不一致、内存超限、不稳定或实际更慢而选择 CPU。
 
+## 发布用真实模型冒烟
+
+发布前使用统一入口运行真实模型校验。它会校验固定模型缓存，记录 Markdown 解析、真实 E5 Embedding、USearch 索引大小与检索延迟、真实 BGE Reranker、各 Execution Provider 的正确性和分工作负载选择结果：
+
+```bash
+uv run --no-sync python -m scripts.run_rag_smoke \
+  --cache-dir .rag-model-cache \
+  --output rag-smoke.json
+```
+
+默认测试 CPU 以及本机所有已安装且平台兼容的加速 Provider。也可以明确限定候选；CPU 基线始终必选：
+
+```bash
+# Apple Silicon
+uv run --no-sync python -m scripts.run_rag_smoke --cache-dir .rag-model-cache \
+  --provider CPUExecutionProvider --provider CoreMLExecutionProvider
+
+# NVIDIA / Intel / Windows GPU 发布机分别追加：
+# --provider CUDAExecutionProvider
+# --provider OpenVINOExecutionProvider
+# --provider DmlExecutionProvider
+```
+
+Windows、macOS、Linux 的 CPU-only 矩阵和 Apple Silicon 冒烟已配置在 `.github/workflows/rag-real-model-smoke.yml`。NVIDIA、OpenVINO 和 DirectML 需要带相应驱动的发布机；启用对应加速 Profile 前，必须保留本脚本生成的 JSON 报告作为发布证据。候选输出不一致会标记 `correctness_gate_failed`；候选正确但更慢时，`selected` 会继续指向 CPU。
+
 私人 RAG 数据目录应仅允许 nanobot 进程访问，并纳入加密磁盘、备份、保留期与实例销毁策略。`/rag list`、状态事件和错误不会返回托管宿主路径或文档正文。

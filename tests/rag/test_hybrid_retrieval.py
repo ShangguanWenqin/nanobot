@@ -226,6 +226,20 @@ async def test_no_candidate_above_threshold_returns_typed_no_evidence() -> None:
     assert result.evidence == ()
 
 
+@pytest.mark.asyncio
+async def test_empty_library_returns_typed_no_evidence() -> None:
+    retriever, lexical, vectors = _retriever(
+        lexical_keys=(), dense_keys=(), candidates={}
+    )
+    retriever.active_generation = lambda: None
+
+    result = await retriever.search("question")
+
+    assert result.status is SearchStatus.NO_EVIDENCE
+    assert lexical.calls == []
+    assert vectors.pinned.calls == []
+
+
 def test_sqlite_candidate_loader_enforces_ready_generation_and_profile(
     tmp_path,
 ) -> None:

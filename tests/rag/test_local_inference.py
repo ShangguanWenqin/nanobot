@@ -18,6 +18,7 @@ from nanobot.rag.local_inference import (
     LocalEmbedder,
     LocalReranker,
     create_cpu_session,
+    create_onnx_session,
 )
 from nanobot.rag.model_manifest import (
     LocalModelManifest,
@@ -363,7 +364,10 @@ def test_real_loader_uses_verified_local_files_and_cpu_only(
 
     modules = {
         "tokenizers": SimpleNamespace(Tokenizer=TokenizerFactory()),
-        "onnxruntime": SimpleNamespace(InferenceSession=SessionFactory()),
+        "onnxruntime": SimpleNamespace(
+            InferenceSession=SessionFactory(),
+            get_available_providers=lambda: ["CPUExecutionProvider"],
+        ),
     }
     monkeypatch.setattr(local_inference, "import_module", modules.__getitem__)
 
@@ -431,7 +435,10 @@ def test_cpu_session_passes_only_inputs_declared_by_onnx_graph(
     monkeypatch.setattr(
         local_inference,
         "import_module",
-        lambda _: SimpleNamespace(InferenceSession=Factory()),
+        lambda _: SimpleNamespace(
+            InferenceSession=Factory(),
+            get_available_providers=lambda: ["CPUExecutionProvider"],
+        ),
     )
     session = create_cpu_session(tmp_path / "model.onnx")
     session.run(
@@ -444,6 +451,57 @@ def test_cpu_session_passes_only_inputs_declared_by_onnx_graph(
     )
 
     assert received == [{"input_ids", "attention_mask"}]
+
+
+def test_onnx_session_uses_the_selected_local_execution_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_providers: list[list[str]] = []
+
+    class RawSession:
+        def get_inputs(self) -> list[object]:
+            return [SimpleNamespace(name="input_ids"), SimpleNamespace(name="attention_mask")]
+
+        def run(self, output_names: None, input_feed: dict[str, object]) -> list[object]:
+            del output_names, input_feed
+            return [np.asarray([[0.0]])]
+
+    class Factory:
+        def __call__(self, path: str, *, providers: list[str]) -> RawSession:
+            del path
+            received_providers.append(providers)
+            return RawSession()
+
+    monkeypatch.setattr(
+        local_inference,
+        "import_module",
+        lambda _: SimpleNamespace(
+            InferenceSession=Factory(),
+            get_available_providers=lambda: [
+                "CoreMLExecutionProvider",
+                "CPUExecutionProvider",
+            ],
+        ),
+    )
+
+    create_onnx_session(tmp_path / "model.onnx", "CoreMLExecutionProvider")
+
+    assert received_providers == [["CoreMLExecutionProvider"]]
+
+
+def test_onnx_session_rejects_an_unavailable_execution_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_inference,
+        "import_module",
+        lambda _: SimpleNamespace(get_available_providers=lambda: ["CPUExecutionProvider"]),
+    )
+
+    with pytest.raises(ValueError, match="unavailable"):
+        create_onnx_session(tmp_path / "model.onnx", "CUDAExecutionProvider")
 
 
 @pytest.mark.asyncio

@@ -73,6 +73,10 @@ class _TokenizerBackend(Protocol):
         inputs: list[str] | list[tuple[str, str]],
     ) -> list[_Encoding]: ...
 
+    def encode(self, text: str, *, add_special_tokens: bool = True) -> _Encoding: ...
+
+    def decode(self, ids: list[int], *, skip_special_tokens: bool = True) -> str: ...
+
 
 class _TokenizerFactory(Protocol):
     def from_file(self, path: str) -> _TokenizerBackend: ...
@@ -85,6 +89,12 @@ class _OnnxSessionFactory(Protocol):
         *,
         providers: list[str],
     ) -> _RawOnnxSession: ...
+
+
+class _OnnxRuntimeModule(Protocol):
+    InferenceSession: _OnnxSessionFactory
+
+    def get_available_providers(self) -> list[str]: ...
 
 
 class DeclaredInputSession:
@@ -113,6 +123,8 @@ class DeclaredInputSession:
 
 class LocalTokenizer:
     """Small adapter around the Rust tokenizers package; never executes model code."""
+
+    version = "tokenizers-json-v1"
 
     def __init__(self, path: Path, *, max_length: int) -> None:
         module = import_module("tokenizers")
@@ -150,6 +162,17 @@ class LocalTokenizer:
         self._check_length(max_length)
         return self._to_arrays(self._backend.encode_batch(list(pairs)))
 
+    def encode(self, text: str) -> tuple[int, ...]:
+        """Encode one string for deterministic chunk boundaries."""
+        return tuple(self._backend.encode(text, add_special_tokens=False).ids)
+
+    def decode(self, token_ids: Sequence[Any]) -> str:
+        """Decode chunk token IDs without injecting model special tokens."""
+        return self._backend.decode(
+            [int(token_id) for token_id in token_ids],
+            skip_special_tokens=True,
+        )
+
     def _check_length(self, max_length: int) -> None:
         if max_length != self._max_length:
             raise ValueError("tokenizer sequence limit does not match model manifest")
@@ -168,11 +191,18 @@ class LocalTokenizer:
         return result
 
 
-def create_cpu_session(model_path: Path) -> OnnxSession:
-    module = import_module("onnxruntime")
-    factory = cast(_OnnxSessionFactory, getattr(module, "InferenceSession"))
-    session = factory(str(model_path), providers=["CPUExecutionProvider"])
+def create_onnx_session(model_path: Path, execution_provider: str) -> OnnxSession:
+    if not execution_provider.strip():
+        raise ValueError("ONNX execution provider must not be empty")
+    module = cast(_OnnxRuntimeModule, import_module("onnxruntime"))
+    if execution_provider not in module.get_available_providers():
+        raise ValueError(f"ONNX execution provider {execution_provider!r} is unavailable")
+    session = module.InferenceSession(str(model_path), providers=[execution_provider])
     return DeclaredInputSession(session)
+
+
+def create_cpu_session(model_path: Path) -> OnnxSession:
+    return create_onnx_session(model_path, "CPUExecutionProvider")
 
 
 def _verified_local_artifact(model_dir: Path, relative_path: str) -> Path:
@@ -211,6 +241,7 @@ class LocalEmbedder(_BoundedRuntime):
         session: OnnxSession | None = None,
         batch_size: int = 32,
         max_concurrency: int = 1,
+        execution_provider: str = "CPUExecutionProvider",
     ) -> None:
         if manifest.kind is not ModelKind.EMBEDDING:
             raise ValueError("LocalEmbedder requires an embedding manifest")
@@ -231,7 +262,7 @@ class LocalEmbedder(_BoundedRuntime):
             )
         if session is None:
             model_path = _verified_local_artifact(model_dir, manifest.model_path)
-            session = create_cpu_session(model_path)
+            session = create_onnx_session(model_path, execution_provider)
         self._tokenizer = tokenizer
         self._session = session
 
@@ -310,6 +341,7 @@ class LocalReranker(_BoundedRuntime):
         session: OnnxSession | None = None,
         batch_size: int = 16,
         max_concurrency: int = 1,
+        execution_provider: str = "CPUExecutionProvider",
     ) -> None:
         if manifest.kind is not ModelKind.RERANKER:
             raise ValueError("LocalReranker requires a reranker manifest")
@@ -330,7 +362,7 @@ class LocalReranker(_BoundedRuntime):
             )
         if session is None:
             model_path = _verified_local_artifact(model_dir, manifest.model_path)
-            session = create_cpu_session(model_path)
+            session = create_onnx_session(model_path, execution_provider)
         self._tokenizer = tokenizer
         self._session = session
 
@@ -451,4 +483,5 @@ __all__ = [
     "LocalTokenizer",
     "OnnxSession",
     "create_cpu_session",
+    "create_onnx_session",
 ]

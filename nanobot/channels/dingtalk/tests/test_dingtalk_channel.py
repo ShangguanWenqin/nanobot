@@ -28,6 +28,17 @@ from nanobot.channels.dingtalk.runtime import (
 )
 
 
+@pytest.fixture
+def public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep remote-media tests independent from host DNS and proxy state."""
+    monkeypatch.setattr(
+        "nanobot.security.network.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (2, 1, 6, "", ("93.184.216.34", 0)),
+        ],
+    )
+
+
 class _FakeResponse:
     def __init__(
         self,
@@ -716,7 +727,7 @@ async def test_read_media_bytes_rejects_private_http_target_before_fetch() -> No
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_rejects_private_redirect_result() -> None:
+async def test_read_media_bytes_rejects_private_redirect_result(public_dns: None) -> None:
     """A public-looking media URL must not be accepted after redirecting private."""
     channel = DingTalkChannel(
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["*"]),
@@ -764,7 +775,9 @@ async def test_read_media_bytes_rejects_oversized_remote_response(monkeypatch) -
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_does_not_follow_remote_redirects_by_default() -> None:
+async def test_read_media_bytes_does_not_follow_remote_redirects_by_default(
+    public_dns: None,
+) -> None:
     """Redirects are refused by default instead of followed into internal networks."""
     channel = DingTalkChannel(
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["*"]),
@@ -787,7 +800,9 @@ async def test_read_media_bytes_does_not_follow_remote_redirects_by_default() ->
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_follows_safe_redirect_when_explicitly_enabled() -> None:
+async def test_read_media_bytes_follows_safe_redirect_when_explicitly_enabled(
+    public_dns: None,
+) -> None:
     """Operators can opt in to public redirects without enabling private redirects."""
     channel = DingTalkChannel(
         DingTalkConfig(
@@ -825,7 +840,9 @@ async def test_read_media_bytes_follows_safe_redirect_when_explicitly_enabled() 
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_blocks_cross_host_redirect_without_allowlist() -> None:
+async def test_read_media_bytes_blocks_cross_host_redirect_without_allowlist(
+    public_dns: None,
+) -> None:
     """Redirect opt-in should not allow arbitrary cross-host redirects by default."""
     channel = DingTalkChannel(
         DingTalkConfig(
@@ -859,7 +876,9 @@ async def test_read_media_bytes_blocks_cross_host_redirect_without_allowlist() -
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_allows_cross_host_redirect_when_allowlisted() -> None:
+async def test_read_media_bytes_allows_cross_host_redirect_when_allowlisted(
+    public_dns: None,
+) -> None:
     """Operators can explicitly allow a known CDN/download host for redirects."""
     channel = DingTalkChannel(
         DingTalkConfig(
@@ -897,7 +916,9 @@ async def test_read_media_bytes_allows_cross_host_redirect_when_allowlisted() ->
 
 
 @pytest.mark.asyncio
-async def test_read_media_bytes_blocks_private_redirect_even_when_redirects_enabled() -> None:
+async def test_read_media_bytes_blocks_private_redirect_even_when_redirects_enabled(
+    public_dns: None,
+) -> None:
     """Redirect opt-in must still validate each hop before fetching it."""
     channel = DingTalkChannel(
         DingTalkConfig(
@@ -1103,7 +1124,9 @@ async def test_send_media_ref_short_circuits_on_transport_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_media_ref_short_circuits_on_download_transport_error() -> None:
+async def test_send_media_ref_short_circuits_on_download_transport_error(
+    public_dns: None,
+) -> None:
     """When the image URL send returns an API error (False) but the download
     for the fallback hits a transport error, it must re-raise rather than
     silently returning False."""
@@ -1136,7 +1159,9 @@ async def test_send_media_ref_short_circuits_on_download_transport_error() -> No
 
 
 @pytest.mark.asyncio
-async def test_send_media_ref_short_circuits_on_upload_transport_error() -> None:
+async def test_send_media_ref_short_circuits_on_upload_transport_error(
+    public_dns: None,
+) -> None:
     """When download succeeds but upload hits a transport error, must re-raise."""
     config = DingTalkConfig(client_id="app", client_secret="secret", allow_from=["*"])
     channel = DingTalkChannel(config, MessageBus())

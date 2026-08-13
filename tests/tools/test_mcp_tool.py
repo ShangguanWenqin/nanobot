@@ -6,6 +6,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from urllib.request import getproxies_environment, proxy_bypass_environment
 
 import httpx
 import pytest
@@ -64,6 +65,8 @@ def fake_mcp_runtime() -> dict[str, object | None]:
 def _clear_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (*_PROXY_ENV_VARS, "NO_PROXY", "no_proxy"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("nanobot.security.network.getproxies", getproxies_environment)
+    monkeypatch.setattr("nanobot.security.network.proxy_bypass", proxy_bypass_environment)
 
 
 @pytest.fixture(autouse=True)

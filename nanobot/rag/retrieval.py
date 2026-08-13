@@ -53,7 +53,7 @@ class LexicalSearch(Protocol):
         *,
         generation_id: str,
         limit: int,
-    ) -> Sequence[LexicalHitLike]: ...
+    ) -> tuple[LexicalHitLike, ...]: ...
 
 
 class VectorSearch(Protocol):
@@ -135,7 +135,7 @@ class HybridRetriever:
         reranker: Reranker,
         input_builder: EmbeddingInputBuilder,
         candidate_loader: CandidateLoader,
-        active_generation: Callable[[], str],
+        active_generation: Callable[[], str | None],
         acceptance_threshold: float,
         inference_scheduler: PriorityInferenceScheduler | None = None,
     ) -> None:
@@ -156,6 +156,8 @@ class HybridRetriever:
         if not query.strip():
             raise ValueError("RAG query must not be empty")
         generation_id = self.active_generation()
+        if generation_id is None:
+            return RagSearchResult(status=SearchStatus.NO_EVIDENCE)
         lexical_hits = self.lexical.search(
             query,
             generation_id=generation_id,

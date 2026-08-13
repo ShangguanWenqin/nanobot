@@ -43,6 +43,39 @@ __all__ = ["_run_gateway"]
 console = Console()
 
 
+async def _initialize_gateway_rag(config: Config, bus: Any) -> tuple[Any, Any | None]:
+    """Build RAG lazily so a base install never imports optional inference modules."""
+
+    from nanobot.rag.manager import RagAvailabilityStatus, RagSubsystem, create_rag_subsystem
+
+    subsystem = create_rag_subsystem(config.rag)
+    if subsystem.status is not RagAvailabilityStatus.AVAILABLE:
+        return subsystem, None
+    try:
+        from nanobot.rag.bootstrap import build_rag_application, prepare_local_rag_runtime
+
+        runtime = await prepare_local_rag_runtime(config.rag)
+        application, manager = build_rag_application(config.rag, bus, runtime)
+        return (
+            RagSubsystem(
+                status=RagAvailabilityStatus.AVAILABLE,
+                manager=manager,
+                message="RAG is available",
+            ),
+            application,
+        )
+    except Exception:
+        logger.exception("RAG runtime preparation failed")
+        return (
+            RagSubsystem(
+                status=RagAvailabilityStatus.UNAVAILABLE,
+                manager=None,
+                message="RAG 本地模型或运行后端准备失败，请检查配置和模型缓存。",
+            ),
+            None,
+        )
+
+
 def _http_endpoint_responding(url: str, *, timeout_s: float = 0.25) -> bool:
     """Return whether an HTTP endpoint responds, including with an auth error."""
     import urllib.error
@@ -317,7 +350,7 @@ def _run_gateway(
     )
     from nanobot.providers.fallback_provider import FallbackProvider
     from nanobot.providers.image_generation import image_gen_provider_configs
-    from nanobot.rag.manager import RagAvailabilityStatus, create_rag_subsystem
+    from nanobot.rag.manager import RagAvailabilityStatus
     from nanobot.session.manager import SessionManager
     from nanobot.session.webui_turns import (
         WebuiTurnCoordinator,
@@ -355,7 +388,7 @@ def _run_gateway(
     sync_workspace_templates(config.workspace_path)
     bus = MessageBus()
     runtime_events = RuntimeEventBus()
-    rag_subsystem = create_rag_subsystem(config.rag)
+    rag_subsystem, rag_application = asyncio.run(_initialize_gateway_rag(config, bus))
     if rag_subsystem.status is RagAvailabilityStatus.UNAVAILABLE:
         console.print(f"[yellow]RAG unavailable: {rag_subsystem.message}[/yellow]")
     fallback_model_observer = build_webui_fallback_model_observer(bus)
@@ -435,6 +468,7 @@ def _run_gateway(
         hooks=[TokenUsageHook(timezone_name=config.agents.defaults.timezone)],
         local_trigger_store=trigger_store,
         hook_factories=[create_file_edit_activity_hook],
+        rag_application=rag_application,
     )
     def _schedule_webui_background(awaitable: Awaitable[None]) -> None:
         agent.schedule_background(cast(Coroutine[Any, Any, None], awaitable))
