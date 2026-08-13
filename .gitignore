@@ -101,3 +101,5 @@ exp/
 .playwright-mcp/
 bridge/node_modules/
 webui/.verify-*
+
+.agents/
