@@ -24,14 +24,23 @@ from nanobot.security.workspace_access import current_tool_workspace
 from nanobot.utils.helpers import build_image_content_blocks, detect_image_mime
 
 
+# 文件工具的配置类
 class FileToolsConfig(Base):
     """Filesystem tools configuration."""
 
     enable: bool = True  # built-in file tools on by default
 
 
+# 所有文件系统 Tool 的公共基类。
 class _FsTool(Tool):
-    """Shared base for filesystem tools — common init and path resolution."""
+    """Shared base for filesystem tools — common init and path resolution.
+    解决
+    1. workspace 是什么
+    2. 文件访问边界在哪里
+    3. 读权限和写权限是否相同
+    4. 当前 session 的 FileState 是什么
+    5. 如何解析用户提供的路径
+"""
 
     config_key = "file"
 
@@ -47,11 +56,11 @@ class _FsTool(Tool):
         self,
         workspace: Path | None = None,
         allowed_dir: Path | None = None,
-        extra_allowed_dirs: list[Path] | None = None,
-        extra_read_allowed_dirs: list[Path] | None = None,
-        extra_write_allowed_dirs: list[Path] | None = None,
-        extra_write_allowed_files: list[Path] | None = None,
-        file_states: FileStates | None = None,
+        extra_allowed_dirs: list[Path] | None = None, # 历史遗留项，后续作为只读
+        extra_read_allowed_dirs: list[Path] | None = None, # 只读目录
+        extra_write_allowed_dirs: list[Path] | None = None, # 可写目录
+        extra_write_allowed_files: list[Path] | None = None, # 可写文件
+        file_states: FileStates | None = None, # 文件状态
         restrict_to_workspace: bool | None = None,
         sandbox_restricts_workspace: bool = False,
         extra_read_allowed_files: list[Path] | None = None,
@@ -79,12 +88,13 @@ class _FsTool(Tool):
         self._explicit_file_states = file_states
         self._fallback_file_states = FileStates()
 
-    @classmethod
+    @classmethod # classmethod 可以通过函数名称创建一个对象（工厂方法）
     def create(cls, ctx: ToolContext) -> Tool:
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
 
         agent_workspace = Path(ctx.workspace)
         resolved_agent_workspace = agent_workspace.expanduser().resolve(strict=False)
+        # 是否限制文件访问范围
         restrict = (
             ctx.config.restrict_to_workspace
             or ctx.config.exec.sandbox
@@ -103,13 +113,18 @@ class _FsTool(Tool):
             sandbox_restricts_workspace=sandbox_restricts,
         )
 
+    # 文件状态
     @property
     def _file_states(self) -> FileStates:
+        # 有显示的文件状态就用，否则就从contextVar取
         if self._explicit_file_states is not None:
             return self._explicit_file_states
         return current_file_states(self._fallback_file_states)
 
+    # 返回有效的根目录
     def _effective_allowed_root(self, access_allowed_root: Path | None) -> Path | None:
+        # 输入参数access_allowed_root的优先级更高
+        # 有access_allowed_root选access_allowed_root否则选默认的self._allowed_dir
         if self._allowed_dir is None or self._workspace is None:
             return access_allowed_root
         try:
@@ -121,6 +136,7 @@ class _FsTool(Tool):
             return access_allowed_root
         return allowed_dir
 
+    # 解析出工作路径
     def _resolve_with_extra(
         self,
         path: str,
@@ -185,7 +201,7 @@ class _FsTool(Tool):
 # read_file
 # ---------------------------------------------------------------------------
 
-
+# 需要阻塞的PATH,read_file("/dev/random") 理论上可能得到持续不断的数据
 _BLOCKED_DEVICE_PATHS = frozenset({
     "/dev/zero", "/dev/random", "/dev/urandom", "/dev/full",
     "/dev/stdin", "/dev/stdout", "/dev/stderr",
@@ -193,7 +209,7 @@ _BLOCKED_DEVICE_PATHS = frozenset({
     "/dev/fd/0", "/dev/fd/1", "/dev/fd/2",
 })
 
-
+# 检查path是否是阻塞的路径
 def _is_blocked_device(path: str | Path) -> bool:
     """Check if path is a blocked device that could hang or produce infinite output."""
     import re
@@ -305,6 +321,7 @@ class ReadFileTool(_FsTool):
             if _is_blocked_device(path):
                 return ToolResult.error(f"Error: Reading {path} is blocked (device path that could hang or produce infinite output).")
 
+            # 路径解析
             fp = self._resolve_read(path)
             if not fp.exists():
                 fp = _builtin_skill_read_path(path) or fp
@@ -347,6 +364,7 @@ class ReadFileTool(_FsTool):
                 current_mtime = os.path.getmtime(fp)
             except OSError:
                 current_mtime = 0.0
+            # 判断是否可以dedup，如果可以就不用再读一遍了
             if (
                 not force
                 and entry
@@ -405,6 +423,7 @@ class ReadFileTool(_FsTool):
             # concern (git checkouts with autocrlf, editors saving CRLF) but
             # applied on all platforms so downstream StrReplace/Grep behavior
             # is consistent regardless of where the file was written.
+            # 替换windows的古怪设计
             text_content = text_content.replace("\r\n", "\n")
 
             all_lines = text_content.splitlines()
@@ -442,6 +461,7 @@ class ReadFileTool(_FsTool):
         except Exception as e:
             return ToolResult.error(f"Error reading file: {e}")
 
+    # pdf读取
     def _read_pdf(self, fp: Path, pages: str | None) -> str:
         from nanobot.utils.document import PdfPageRangeError, PdfSafetyError, extract_pdf_pages
 
@@ -472,6 +492,7 @@ class ReadFileTool(_FsTool):
             )
         return result
 
+    # office 读取
     def _read_office_doc(self, fp: Path) -> str:
         from nanobot.utils.document import extract_text
 
@@ -497,6 +518,7 @@ class ReadFileTool(_FsTool):
 # ---------------------------------------------------------------------------
 
 
+# 整体替换（如果原来已经有数据）
 @tool_parameters(
     tool_parameters_schema(
         path=StringSchema("The file path to write to"),
@@ -539,20 +561,22 @@ class WriteFileTool(_FsTool):
 
 
 # ---------------------------------------------------------------------------
-# edit_file
+# edit_file 局部精确替换文本
 # ---------------------------------------------------------------------------
 
 _QUOTE_TABLE = str.maketrans({
-    "\u2018": "'", "\u2019": "'",  # curly single → straight
-    "\u201c": '"', "\u201d": '"',  # curly double → straight
+    "\u2018": "'", "\u2019": "'",  # curly single → straight 弯曲单引号 -> 直单引号
+    "\u201c": '"', "\u201d": '"',  # curly double → straight 弯曲双引号 -> 直双引号
     "'": "'", '"': '"',            # identity (kept for completeness)
 })
 
 
+# 将文本的弯曲引号改成直的
 def _normalize_quotes(s: str) -> str:
     return s.translate(_QUOTE_TABLE)
 
 
+# 将直双引号改成弯双引号
 def _curly_double_quotes(text: str) -> str:
     parts: list[str] = []
     opening = True
@@ -565,6 +589,7 @@ def _curly_double_quotes(text: str) -> str:
     return "".join(parts)
 
 
+# 将直单引号改成弯单引号
 def _curly_single_quotes(text: str) -> str:
     parts: list[str] = []
     opening = True
@@ -582,6 +607,7 @@ def _curly_single_quotes(text: str) -> str:
     return "".join(parts)
 
 
+# 将引号改回弯的形式
 def _preserve_quote_style(old_text: str, actual_text: str, new_text: str) -> str:
     """Preserve curly quote style when a quote-normalized fallback matched."""
     if _normalize_quotes(old_text.strip()) != _normalize_quotes(actual_text.strip()) or old_text == actual_text:
@@ -595,14 +621,17 @@ def _preserve_quote_style(old_text: str, actual_text: str, new_text: str) -> str
     return styled
 
 
+# 获取str前的所有空白符
 def _leading_ws(line: str) -> str:
     return line[: len(line) - len(line.lstrip(" \t"))]
 
 
+# 保留实际匹配块的缩进
 def _reindent_like_match(old_text: str, actual_text: str, new_text: str) -> str:
     """Preserve the outer indentation from the actual matched block."""
     old_lines = old_text.split("\n")
     actual_lines = actual_text.split("\n")
+    # 旧的text和新的text行数不匹配直接返回new_text?
     if len(old_lines) != len(actual_lines):
         return new_text
 
@@ -611,17 +640,20 @@ def _reindent_like_match(old_text: str, actual_text: str, new_text: str) -> str:
         for old_line, actual_line in zip(old_lines, actual_lines)
         if old_line.strip() and actual_line.strip()
     ]
+    # 如果新、旧line标准化后（引号标准化、空白字符去掉）不一致，直接返回new_text
     if not comparable or any(
         _normalize_quotes(old_line.strip()) != _normalize_quotes(actual_line.strip())
         for old_line, actual_line in comparable
     ):
         return new_text
 
+    # 缩进一致，返回new_text
     old_ws = _leading_ws(comparable[0][0])
     actual_ws = _leading_ws(comparable[0][1])
     if actual_ws == old_ws:
         return new_text
 
+    # 获取缩进字符
     if old_ws:
         if not actual_ws.startswith(old_ws):
             return new_text
@@ -795,6 +827,7 @@ def _best_window(old_text: str, content: str) -> tuple[float, int, list[str], li
     return best_ratio, best_start, best_window_lines, hints
 
 
+# 替换文件内容，这个比较复杂，没有太仔细查看，会用到上面很多的匹配函数，核心是只匹配到了一个结果就正常替换
 @tool_parameters(
     tool_parameters_schema(
         path=StringSchema("The file path to edit"),
@@ -1055,6 +1088,7 @@ class EditFileTool(_FsTool):
         required=["path"],
     )
 )
+# 使用可选的递归方式列出目录下的内容
 class ListDirTool(_FsTool):
     """List directory contents with optional recursion."""
     _scopes = {"core", "subagent"}
@@ -1099,6 +1133,7 @@ class ListDirTool(_FsTool):
             items: list[str] = []
             total = 0
 
+            # 是否递归list
             if recursive:
                 for item in sorted(dp.rglob("*")):
                     if any(p in self._IGNORE_DIRS for p in item.parts):

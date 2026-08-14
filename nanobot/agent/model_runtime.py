@@ -1,4 +1,13 @@
-"""Public resolution boundary for default and overridden LLM runtimes."""
+"""Public resolution boundary for default and overridden LLM runtimes.
+Agent 的“模型运行时选择器 + Runtime 生命周期管理器”。
+
+它主要解决 4 个问题：
+
+1. 当前默认模型是谁？
+2. 切换 preset 后，未来 Turn 用谁？
+3. 配置发生变化后，默认 Runtime 是否需要刷新？
+4. 某一次 SDK/API 调用想临时指定模型时，怎么不影响默认模型？
+"""
 
 from __future__ import annotations
 
@@ -31,11 +40,11 @@ class ModelRuntimeResolver:
         provider_snapshot_loader: Callable[[], ProviderSnapshot] | None = None,
         preset_snapshot_loader: preset_helpers.PresetSnapshotLoader | None = None,
     ) -> None:
-        self._runtime = initial_runtime
-        self._model_presets = dict(model_presets or {})
+        self._runtime = initial_runtime # 初始runtime
+        self._model_presets = dict(model_presets or {}) # 预设model 配置
         self._preset_catalog_loader = preset_catalog_loader
         self._preset_catalog_refresh_required = False
-        self._provider_snapshot_loader = provider_snapshot_loader
+        self._provider_snapshot_loader = provider_snapshot_loader 
         self._preset_snapshot_loader = preset_snapshot_loader
         self._refresh_required = False
         self._resolved_presets: dict[str, LLMRuntime] = {}
@@ -66,6 +75,7 @@ class ModelRuntimeResolver:
     def provider_signature(self) -> tuple[object, ...] | None:
         return self._runtime.snapshot_signature
 
+    # 返回当前的runtime，可选择是否刷新
     def current(self, *, refresh: bool = False) -> LLMRuntime:
         """Return the selected runtime, optionally refreshing the default source."""
         if refresh:
@@ -100,6 +110,7 @@ class ModelRuntimeResolver:
         """Resolve a factory snapshot without changing the selected default."""
         return runtime_from_provider_snapshot(snapshot)
 
+    # 应用一个快照
     def adopt_snapshot(
         self,
         snapshot: ProviderSnapshot,
@@ -114,6 +125,7 @@ class ModelRuntimeResolver:
         )
         return runtime
 
+    # 解析一个preset name， 返回runtime
     def resolve_preset(self, name: str | None) -> LLMRuntime:
         """Resolve a named preset without changing the selected default."""
         self._refresh_preset_catalog()
@@ -131,6 +143,7 @@ class ModelRuntimeResolver:
         self._resolved_presets[normalized] = runtime
         return runtime
 
+    # 选择一个preset name（非临时）
     def select_preset(self, name: str | None) -> LLMRuntime:
         """Select a named preset as the default for future turns."""
         runtime = self.resolve_preset(name)
@@ -138,6 +151,7 @@ class ModelRuntimeResolver:
         self._tracks_provider_generation = False
         return runtime
 
+    # runtime换model，注意一旦你直接选择了 model，就不再认为当前 Runtime 是某个 preset 的完整配置。所以runtime里的model_preset=None
     def select_model(self, model: str) -> LLMRuntime:
         """Change the default model without reconstructing downstream consumers."""
         if not isinstance(cast(object, model), str) or not model.strip():
@@ -149,6 +163,7 @@ class ModelRuntimeResolver:
         )
         return self._runtime
 
+    # 改变上下文token限制
     def select_context_window(self, context_window_tokens: int) -> LLMRuntime:
         """Change the default context limit for future admissions."""
         raw_context_window = cast(object, context_window_tokens)
@@ -163,6 +178,7 @@ class ModelRuntimeResolver:
         )
         return self._runtime
 
+    # 刷新provider的生成参数（如果self._tracks_provider_generation为true就修改），为什么跟随provider默认的generation修改？
     def _refresh_provider_generation(self) -> LLMRuntime | None:
         """Adopt direct provider-default changes only for provider-backed defaults."""
         if not self._tracks_provider_generation:
@@ -180,6 +196,7 @@ class ModelRuntimeResolver:
         self._runtime = replace(runtime, generation=captured.generation)
         return self._runtime
 
+    # 刷新默认配置，这块不是特别理解？（后面再说！！！！）
     def refresh(self) -> LLMRuntime | None:
         """Refresh configured defaults and return the replacement when changed."""
         if self._provider_snapshot_loader is None:
@@ -217,6 +234,7 @@ class ModelRuntimeResolver:
         )
         return runtime
 
+    # 某一次运行想临时使用其他模型，但不要改变默认 Runtime。
     def resolve_override(
         self,
         *,
@@ -225,12 +243,15 @@ class ModelRuntimeResolver:
         config: Config | None = None,
     ) -> LLMRuntime | None:
         """Resolve an SDK-style per-run override without mutating the default."""
+        # 不能同时制定model 和 model_preset
         if model is not None and model_preset is not None:
             raise ValueError("model and model_preset are mutually exclusive")
+        # 返回一个临时runtime
         if model_preset is not None:
             return self.resolve_preset(model_preset)
         if model is None:
             return None
+        # 返回一个只修改model和签名 的 runtime
         if config is None:
             return LLMRuntime(
                 provider=self._runtime.provider,
@@ -240,6 +261,9 @@ class ModelRuntimeResolver:
                 snapshot_signature=("model_override", model),
             )
 
+        # 获取model_preset参数
         base = config.resolve_preset(self.model_preset)
+        # 将model替换，provider设置成auto
         preset = base.model_copy(update={"model": model, "provider": "auto"})
+        # 根据新的preset得到runtime
         return self.resolve_snapshot(build_provider_snapshot(config, preset=preset))

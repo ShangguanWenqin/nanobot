@@ -70,6 +70,7 @@ class DreamRunProgress:
             self.had_tool_errors = True
 
 
+# 读取history.jsonl，将长期记忆写入 MEMORY.md, SOUL.md, USER.md
 class MemoryStore:
     """Pure file I/O for memory files: MEMORY.md, history.jsonl, SOUL.md, USER.md."""
 
@@ -124,12 +125,14 @@ class MemoryStore:
         except FileNotFoundError:
             return ""
 
+    # 尝试从旧版的HISTORY.md 迁移到 history.jsonl
     def _maybe_migrate_legacy_history(self) -> None:
         """One-time upgrade from legacy HISTORY.md to history.jsonl.
 
         The migration is best-effort and prioritizes preserving as much content
         as possible over perfect parsing.
         """
+        # 旧文件不存在或新文件已存在可以直接跳过
         if not self.legacy_history_file.exists():
             return
         if self.history_file.exists() and self.history_file.stat().st_size > 0:
@@ -163,6 +166,7 @@ class MemoryStore:
         except Exception:
             logger.exception("Failed to migrate legacy HISTORY.md")
 
+    # 解析遗留的历史（未细看）
     def _parse_legacy_history(self, text: str) -> list[dict[str, Any]]:
         normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
         if not normalized:
@@ -189,6 +193,7 @@ class MemoryStore:
             })
         return entries
 
+    # history文件迁移相关（未细看）
     def _split_legacy_history_chunks(self, text: str) -> list[str]:
         lines = text.split("\n")
         chunks: list[str] = []
@@ -213,6 +218,7 @@ class MemoryStore:
             chunks.append("\n".join(current).strip())
         return [chunk for chunk in chunks if chunk]
 
+    # history文件迁移相关（未细看）
     def _should_start_new_legacy_chunk(self, line: str, current: list[str]) -> bool:
         if not current:
             return False
@@ -222,6 +228,7 @@ class MemoryStore:
             return False
         return True
 
+    # history文件迁移相关（未细看）
     def _is_raw_legacy_chunk(self, lines: list[str]) -> bool:
         first_nonempty = next((line for line in lines if line.strip()), "")
         match = self._LEGACY_TIMESTAMP_RE.match(first_nonempty)
@@ -229,6 +236,7 @@ class MemoryStore:
             return False
         return first_nonempty[match.end():].lstrip().startswith("[RAW]")
 
+    # history文件迁移相关（未细看）
     def _legacy_fallback_timestamp(self) -> str:
         try:
             return datetime.fromtimestamp(
@@ -237,6 +245,7 @@ class MemoryStore:
         except OSError:
             return datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # history文件迁移相关（未细看）
     def _next_legacy_backup_path(self) -> Path:
         candidate = self.memory_dir / "HISTORY.md.bak"
         suffix = 2
@@ -277,6 +286,7 @@ class MemoryStore:
 
     # -- history.jsonl — append-only, JSONL format ---------------------------
 
+    # 将新的历史写入history.jsonl,返回新的游标
     def append_history(
         self,
         entry: str,
@@ -298,9 +308,11 @@ class MemoryStore:
         content more tightly; this default only exists to catch unintentional
         large writes (e.g. an LLM echoing its input back as a "summary").
         """
+        # 历史消息限制
         limit = max_chars if max_chars is not None else _HISTORY_ENTRY_HARD_CAP
         ts = datetime.now().strftime("%Y-%m-%d %H:%M")
         raw = entry.rstrip()
+        # 截断
         if len(raw) > limit:
             if not self._oversize_logged:
                 self._oversize_logged = True
@@ -311,9 +323,11 @@ class MemoryStore:
                     limit, len(raw),
                 )
             raw = truncate_text(raw, limit)
+        # 剥离think
         content = strip_think(raw)
         # Cursor allocation and the append must be atomic: concurrent writers
         # could otherwise read the same current cursor and emit duplicates.
+        # 加锁
         with self._append_lock:
             cursor = self._next_cursor()
             if raw and not content:
@@ -337,6 +351,7 @@ class MemoryStore:
             return None
         return value
 
+    # 生成合法的entry，cursor
     def _iter_valid_entries(self) -> Iterator[tuple[dict[str, Any], int]]:
         """Yield ``(entry, cursor)`` for well-formed entries; warn once on corruption."""
         poisoned: Any = None
@@ -368,6 +383,7 @@ class MemoryStore:
                 malformed_cursor,
             )
 
+    # entry是否合法
     @staticmethod
     def _valid_history_payload(entry: dict[str, Any]) -> bool:
         if not isinstance(entry.get("timestamp"), str):
@@ -377,6 +393,7 @@ class MemoryStore:
         session_key = entry.get("session_key")
         return session_key is None or isinstance(session_key, str)
 
+    # 读取游标文件的游标值
     def _read_cursor_counter(self) -> int | None:
         """Return the persisted cursor counter when it is usable."""
         if not self._cursor_file.exists():
@@ -387,6 +404,7 @@ class MemoryStore:
                 return cursor
         return None
 
+    # 获取下一个游标值（不一定是连续的，可能有损坏）
     def _next_cursor(self) -> int:
         """Read the current cursor counter and return the next value."""
         cursor_counter = self._read_cursor_counter()
@@ -405,10 +423,12 @@ class MemoryStore:
             return last_cursor + 1
         return max((c for _, c in self._iter_valid_entries()), default=0) + 1
 
+    # 读取未处理的history，根据cursor判断
     def read_unprocessed_history(self, since_cursor: int) -> list[dict[str, Any]]:
         """Return history entries with a valid cursor > *since_cursor*."""
         return [e for e, c in self._iter_valid_entries() if c > since_cursor]
 
+    # 判断是否为内部历史session
     @classmethod
     def _is_internal_history_session(cls, session_key: str | None) -> bool:
         if not session_key:
@@ -418,6 +438,7 @@ class MemoryStore:
             or session_key.startswith(cls._INTERNAL_HISTORY_SESSION_PREFIXES)
         )
 
+    # 读取最近的历史（dream未处理过，且根据session_key筛选）
     def read_recent_history_for_prompt(
         self,
         since_cursor: int,
@@ -426,9 +447,11 @@ class MemoryStore:
         unified_session: bool = False,
     ) -> list[dict[str, Any]]:
         """Return unprocessed history entries safe to inject into a turn prompt."""
+        # dream未处理的history
         entries = self.read_unprocessed_history(since_cursor=since_cursor)
         if session_key is None:
             return entries
+        # 根据session_key过滤
         if not unified_session:
             return [e for e in entries if e.get("session_key") == session_key]
 
@@ -439,6 +462,7 @@ class MemoryStore:
             or not self._is_internal_history_session(entry_session)
         ]
 
+    # 如果历史记录大于限定值，截取
     def compact_history(self) -> None:
         """Drop oldest processed entries without discarding pending Dream input."""
         if self.max_history_entries <= 0:
@@ -471,6 +495,7 @@ class MemoryStore:
 
     # -- JSONL helpers -------------------------------------------------------
 
+    # 读取history.jsonl内的所有历史
     def _read_entries(self) -> list[dict[str, Any]]:
         """Read all entries from history.jsonl."""
         entries: list[dict[str, Any]] = []
@@ -488,6 +513,7 @@ class MemoryStore:
 
         return entries
 
+    # 读取history.jsonl内的最后一条历史
     def _read_last_entry(self) -> dict[str, Any] | None:
         """Read the last entry from the JSONL file efficiently."""
         try:
@@ -507,6 +533,7 @@ class MemoryStore:
         except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
             return None
 
+    # 覆盖history
     def _write_entries(self, entries: list[dict[str, Any]]) -> None:
         """Overwrite history.jsonl with the given entries (atomic write)."""
         tmp_path = self.history_file.with_suffix(self.history_file.suffix + ".tmp")
@@ -563,6 +590,7 @@ class MemoryStore:
             skill_creator_path=str(BUILTIN_SKILLS_DIR / "skill-creator" / "SKILL.md"),
         )
 
+    # 获取dream的模版prompt
     def _dream_template(self) -> str:
         text, original_chars = load_workspace_prompt_override(self.dream_prompt_file)
         if text is not None:
@@ -579,6 +607,7 @@ class MemoryStore:
             return text
         return self.default_dream_prompt()
 
+    # 构建dream prompt，主要有三块内通，dream 模版、三个dream相关文件、未读取的history session
     def build_dream_prompt(self, *, max_entries: int = 20) -> tuple[str, int] | None:
         """Build the Dream prompt with unprocessed history context.
 
@@ -589,17 +618,19 @@ class MemoryStore:
         than a stale mental model — eliminating a class of failed/out-of-bounds
         edits that previously produced hallucinated audit records.
         """
+        # 上次dream处理的index
         last_cursor = self.get_last_dream_cursor()
         entries = self.read_unprocessed_history(since_cursor=last_cursor)
         if not entries:
             return None
 
-        batch = entries[:max_entries]
+        batch = entries[:max_entries] # 每次最多处理max_entries条
         history_text = "\n".join(
             f"[{e['timestamp']}] {truncate_text(e['content'], 1000)}"
             for e in batch
         )
         template = self._dream_template()
+        # 获取几个 memory关文件的内容
         files_section = self._render_current_memory_files()
         prompt = (
             f"{template}\n\n{files_section}\n\n"
@@ -607,6 +638,7 @@ class MemoryStore:
         )
         return (prompt, batch[-1]["cursor"])
 
+    # 获取当前的memory文件内容
     def _render_current_memory_files(self) -> str:
         """Render the durable memory files' current contents for the Dream prompt.
 
@@ -629,6 +661,7 @@ class MemoryStore:
             blocks.append(f"### {label}\n{content}" if content.strip() else f"### {label}\n(empty)")
         return "## Current Memory Files\n" + "\n\n".join(blocks)
 
+    # 询问 Git：Memory 文件到底改了什么。
     def dream_content_diff(self) -> str:
         """Structured summary of uncommitted changes to the durable memory files.
 
@@ -639,6 +672,7 @@ class MemoryStore:
             return ""
         return self._git.summarize_working_tree(list(self._DREAM_CONTENT_PATHS))
 
+    # 构建dream 的工具
     def build_dream_tools(self) -> ToolRegistry:
         """Build the restricted tool registry used by Dream runs."""
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
@@ -650,6 +684,7 @@ class MemoryStore:
         tools = ToolRegistry()
         file_states = FileStates()
         workspace = self.workspace
+        # Dream只能编辑：skills,和三个memory文件
         skills_dir = workspace / "skills"
         skills_dir.mkdir(parents=True, exist_ok=True)
 
@@ -682,6 +717,7 @@ class MemoryStore:
         ))
         return tools
 
+    # dream 是否运行完成
     @staticmethod
     def dream_run_completed(
         resp: object | None,
@@ -696,6 +732,7 @@ class MemoryStore:
 
     # -- message formatting utility ------------------------------------------
 
+    # 将messages转换成标准str
     @staticmethod
     def _format_messages(messages: list[dict[str, Any]]) -> str:
         lines: list[str] = []
@@ -719,6 +756,7 @@ class MemoryStore:
             lines.append(f"[{timestamp[:16]}] {role.upper()}{tools}: {content}")
         return "\n".join(lines)
 
+    # 压缩失败后，强制压缩
     def raw_archive(
         self,
         messages: list[dict[str, Any]],
@@ -745,11 +783,13 @@ class MemoryStore:
     # Dream helpers
     # ------------------------------------------------------------------
 
+    # 获取dream session key，现在知道为什么别的地方判断的时候是看是不是dream开头了
     @staticmethod
     def dream_session_key() -> str:
         """Return a unique session key for a Dream run, e.g. ``dream:20260528-100000``."""
         return f"dream:{datetime.now():%Y%m%d-%H%M%S}"
 
+    # 构建dream 的 commit 消息，基于git 的diff
     @staticmethod
     def build_dream_commit_message(prefix: str, diff_body: str) -> str:
         """Build a Dream commit message grounded in the real working-tree diff.
@@ -768,6 +808,7 @@ class MemoryStore:
             return prefix
         return f"{prefix}\n\n{diff_body}"
 
+    # 删除多余的Dream session， 只保留keep个
     @staticmethod
     def prune_dream_sessions(sessions: SessionManager, *, keep: int = 10) -> None:
         """Remove the oldest Dream session files, keeping only the N most recent.
@@ -802,6 +843,7 @@ _ARCHIVE_SUMMARY_MAX_CHARS = 8_000    # LLM-produced consolidation summary
 _HISTORY_ENTRY_HARD_CAP = 64_000      # emergency cap in append_history
 
 
+# 将被剔除的消息压缩，写进history.jsonl
 class Consolidator:
     """Summarize compacted messages into history.jsonl."""
 
@@ -818,26 +860,30 @@ class Consolidator:
         consolidation_ratio: float = 0.5,
         unified_session: bool = False,
     ):
-        self.store = store
+        self.store = store # MemoryStore类，用来将压缩的历史apend到history.jsonl
         self.sessions = sessions
-        self.consolidation_ratio = consolidation_ratio
+        self.consolidation_ratio = consolidation_ratio # 压缩比例
         self.unified_session = unified_session
-        self._build_messages = build_messages
-        self._get_tool_definitions = get_tool_definitions
+        self._build_messages = build_messages # 通过构建message来估计token数量
+        self._get_tool_definitions = get_tool_definitions # token也需要计算tool的消耗
         self._locks: weakref.WeakValueDictionary[str, asyncio.Lock] = (
             weakref.WeakValueDictionary()
         )
 
+    # 一个session一把锁
     def get_lock(self, session_key: str) -> asyncio.Lock:
         """Return the shared consolidation lock for one session."""
         return self._locks.setdefault(session_key, asyncio.Lock())
 
+    # 根据需要压缩的token数量，选择合法压缩的边界。边界的下一条一定是user消息
+    # 压缩从last_consolidated开始，到pick_consolidation_boundary结束 
     def pick_consolidation_boundary(
         self,
         session: Session,
         tokens_to_remove: int,
     ) -> tuple[int, int] | None:
         """Pick a user-turn boundary that removes enough old prompt tokens."""
+        # 从上次压缩的ind开始
         start = session.last_consolidated
         if start >= len(session.messages) or tokens_to_remove <= 0:
             return None
@@ -846,14 +892,18 @@ class Consolidator:
         last_boundary: tuple[int, int] | None = None
         for idx in range(start, len(session.messages)):
             message = session.messages[idx]
+            # 压缩的边界应该是下一个user 消息之前
             if idx > start and message.get("role") == "user":
                 last_boundary = (idx, removed_tokens)
+                # 如果需要移除的token数已经足够，直接返回
                 if removed_tokens >= tokens_to_remove:
                     return last_boundary
+            # 累计压缩的token数量
             removed_tokens += estimate_message_tokens(message)
 
         return last_boundary
 
+    # 获取未压缩的session
     @staticmethod
     def _full_replay_history(
         session: Session,
@@ -875,6 +925,7 @@ class Consolidator:
             return None
 
         tail_messages = [message for _idx, message in tail]
+        # 回放窗口的起始index
         start_idx = recent_message_start_index(
             tail_messages,
             replay_max_messages,
@@ -884,11 +935,11 @@ class Consolidator:
         for i, (_idx, message) in enumerate(sliced):
             if message.get("role") == "user":
                 start = i
-                if i > 0 and sliced[i - 1][1].get("_channel_delivery"):
+                if i > 0 and sliced[i - 1][1].get("_channel_delivery"): # 保留系统主动发送的消息，比如agent：""今天记得吃药"，user:"好的"，不保存前一条消息逻辑不完整
                     start = i - 1
                 sliced = sliced[start:]
                 break
-
+        # 找到tool call 和 tool result 都存在的合法窗口
         legal_start = find_legal_message_start([message for _idx, message in sliced])
         if legal_start:
             sliced = sliced[legal_start:]
@@ -900,6 +951,7 @@ class Consolidator:
             return None
         return first_visible_idx
 
+    # 将回放会隐藏的消息压缩
     async def _consolidate_replay_overflow(
         self,
         session: Session,
@@ -930,6 +982,7 @@ class Consolidator:
         self.sessions.save(session)
         return summary
 
+    # 保存上次的压缩总结，并保存session到磁盘
     def _persist_last_summary(self, session: Session, summary: str | None) -> None:
         if summary and summary != "(nothing)":
             session.metadata["_last_summary"] = {
@@ -938,6 +991,7 @@ class Consolidator:
             }
             self.sessions.save(session)
 
+    # 估算未压缩的message的prompt 的大小
     def estimate_session_prompt_tokens(
         self,
         session: Session,
@@ -971,6 +1025,7 @@ class Consolidator:
             self._get_tool_definitions(),
         )
 
+    # 输入token的预算，最大上下文窗口-最大生成-安全预留
     def _input_token_budget(self, runtime: LLMRuntime) -> int:
         """Available input token budget for consolidation LLM."""
         return (
@@ -979,6 +1034,7 @@ class Consolidator:
             - self._SAFETY_BUFFER
         )
 
+    # 将text截取到budget大小，在本函数内调用函数，通过runtime计算budget
     def _truncate_to_token_budget(self, text: str, *, runtime: LLMRuntime) -> str:
         """Truncate text so it fits within the consolidation LLM's token budget."""
         budget = self._input_token_budget(runtime)
@@ -986,6 +1042,7 @@ class Consolidator:
             return truncate_text(text, _RAW_ARCHIVE_MAX_CHARS)
         return truncate_text_to_tokens(text, budget)
 
+    # 压缩历史消息，保存到history.jsonl,返回压缩结果
     async def archive(
         self,
         messages: list[dict[str, Any]],
@@ -996,10 +1053,12 @@ class Consolidator:
     ) -> str | None:
         """Summarize messages and append the result to history.jsonl.
 
-        ``summary_messages`` adds context but is excluded from raw fallback.
+        要注意的是如果给出了summary_messages，那么总结的就是summary_messages，否则总结的就是messages
+        通常summary_messages都会 > messages
         """
         if not messages:
             return None
+        # 清除了messages中的上下文信息
         messages_to_summarize = public_history_messages(
             summary_messages if summary_messages is not None else messages
         )
@@ -1041,6 +1100,20 @@ class Consolidator:
         )
         return summary
 
+    # 不断压缩，直到token满足budget
+    """
+    while(prompt太大){
+
+        找一块历史
+
+        总结
+
+        删除
+
+        再测token
+    }
+    注意这里是不会删除session里的message的
+    """
     async def maybe_consolidate_by_tokens(
         self,
         session: Session,
@@ -1065,8 +1138,9 @@ class Consolidator:
             if not session.messages:
                 return
 
-            budget = self._input_token_budget(runtime)
-            target = int(budget * self.consolidation_ratio)
+            budget = self._input_token_budget(runtime) # token 预算
+            target = int(budget * self.consolidation_ratio) # 到达buget后压缩的目标值，比如budget是100 ration是0.5，说的是达到100后压缩到50
+            # 压缩不会被client回放的消息，比如最大支持回放100条，现在有300条消息，那么直接压缩200条
             last_summary = await self._consolidate_replay_overflow(
                 session,
                 replay_max_messages,
@@ -1079,6 +1153,7 @@ class Consolidator:
             if estimated <= 0:
                 self._persist_last_summary(session, last_summary)
                 return
+            # 预估的token小于budget，不用压缩，直接保存上次的压缩总结
             if estimated < budget:
                 unconsolidated_count = len(session.messages) - session.last_consolidated
                 logger.debug(
@@ -1092,10 +1167,11 @@ class Consolidator:
                 self._persist_last_summary(session, last_summary)
                 return
 
+            # 开始压缩，压缩轮次有上限
             for round_num in range(self._MAX_CONSOLIDATION_ROUNDS):
                 if estimated <= target:
                     break
-
+                # 获取安全的压缩边界
                 boundary = self.pick_consolidation_boundary(session, max(1, estimated - target))
                 if boundary is None:
                     logger.debug(
@@ -1131,6 +1207,7 @@ class Consolidator:
                 # would just emit duplicate [RAW] entries.
                 if summary:
                     last_summary = summary
+                # 就算失败也会raw_archive，所以last_consolidated一定会变
                 session.last_consolidated = end_idx
                 session.provider_state = None
                 self.sessions.save(session)
@@ -1149,8 +1226,10 @@ class Consolidator:
             # Persist the last summary to session metadata so it can be injected
             # into the runtime context on the next prepare_session() call, aligning
             # the summary injection strategy with AutoCompact._archive().
+            # 保存上次的总结
             self._persist_last_summary(session, last_summary)
 
+    # 压缩空闲的session
     async def compact_idle_session(
         self,
         session_key: str,
@@ -1173,6 +1252,7 @@ class Consolidator:
             )
         lock = self.get_lock(session_key)
         async with lock:
+            # 重新加载session
             self.sessions.invalidate(session_key)
             session = self.sessions.get_or_create(session_key)
 

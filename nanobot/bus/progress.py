@@ -3,6 +3,8 @@
 These helpers convert agent progress callbacks into outbound chat messages.
 Runtime state notifications such as turn lifecycle and model changes live in
 ``nanobot.bus.runtime_events``.
+将中间过程显示出来，如正在调用tool等，提高用户体验，否则用户会觉得很卡
+！！！注意，一般都是非最终回复会调用progress_callback
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ def build_bus_progress_callback(
 ) -> Callable[..., Awaitable[None]]:
     """Return a callback that publishes progress as outbound messages."""
 
+    # 事实上给msg加上了一些Metadata信息，也即处理状态信息
     async def _publish_progress(
         content: str,
         *,

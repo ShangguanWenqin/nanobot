@@ -54,6 +54,7 @@ def defer_cron_until_session_idle(metadata: Mapping[str, Any] | None) -> bool:
     )
 
 
+# 注意是cron的run id，不是cron这个job的id
 def cron_run_id(metadata: Mapping[str, Any] | None) -> str | None:
     trigger = cron_trigger(metadata)
     if not trigger:

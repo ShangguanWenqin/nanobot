@@ -1,4 +1,28 @@
-"""Context builder for assembling agent prompts."""
+"""Context builder for assembling agent prompts.
+
+_state_build()
+        │
+        ▼
+_request_context_for_turn()
+        │
+        ▼
+_resolve_runtime_context_for_turn()
+        │
+        ▼
+_build_initial_messages()
+        │
+        ▼
+ContextBuilder.build_messages()
+        │
+        ▼
+messages[]
+        │
+        ▼
+Runner
+        │
+        ▼
+LLM
+"""
 
 import base64
 import mimetypes
@@ -65,6 +89,7 @@ class ContextBuilder:
         self.memory = MemoryStore(workspace)
         self.skills = SkillsLoader(workspace, disabled_skills=set(disabled_skills) if disabled_skills else None)
 
+    # 把所有”长期有效”的信息组装成一个 System Prompt。
     def build_system_prompt(
         self,
         *,
@@ -78,14 +103,14 @@ class ContextBuilder:
         unified_session: bool = False,
     ) -> str:
         """Build the system prompt from identity, bootstrap files, memory, and skills."""
-        root = workspace or self.workspace
-        parts = [self._get_identity(channel=channel, workspace=root)]
-
+        root = workspace or self.workspace # workspace
+        parts = [self._get_identity(channel=channel, workspace=root)] # 核心身份信息，identity.md渲染
+        # 引导文件
         bootstrap = self._load_bootstrap_files(root)
         if bootstrap:
             parts.append(bootstrap)
 
-        parts.append(render_template("agent/tool_contract.md"))
+        parts.append(render_template("agent/tool_contract.md")) # 如何使用工具的教程和注意事项
 
         if include_memory:
             memory = self.memory.read_memory()
@@ -107,6 +132,7 @@ class ContextBuilder:
         if skills_summary:
             parts.append(render_template("agent/skills_section.md", skills_summary=skills_summary))
 
+        # 近期memory的历史信息，有条数和token数的双重限制
         if include_memory_recent_history:
             entries = self.memory.read_recent_history_for_prompt(
                 since_cursor=self.memory.get_last_dream_cursor(),
@@ -121,11 +147,13 @@ class ContextBuilder:
                 history_text = truncate_text_to_tokens(history_text, self._MAX_HISTORY_TOKENS)
                 parts.append("# Recent History\n\n" + history_text)
 
+        # session总结
         if session_summary:
             parts.append(f"[Archived Context Summary]\n\n{session_summary}")
 
         return "\n\n---\n\n".join(parts)
 
+    # 获取核心身份信息，主要是identity.md渲染后的信息
     def _get_identity(self, channel: str | None = None, workspace: Path | None = None) -> str:
         """Get the core identity section."""
         root = workspace or self.workspace
@@ -166,6 +194,7 @@ class ContextBuilder:
 
         return _to_blocks(left) + _to_blocks(right)
 
+    # 导入引导文件信息
     def _load_bootstrap_files(self, workspace: Path | None = None) -> str:
         """Load project instructions plus the agent's global profile files."""
         parts: list[str] = []
@@ -195,6 +224,7 @@ class ContextBuilder:
 
         return "\n\n".join(parts) if parts else ""
 
+    # 判断是不是模版内容
     @staticmethod
     def _is_template_content(content: str, template_path: str) -> bool:
         """Check if *content* is identical to the bundled template (user hasn't customized it)."""
@@ -203,6 +233,7 @@ class ContextBuilder:
             return content.strip() == tpl.strip()
         return False
 
+    # 把 System Prompt、历史消息、Runtime Context、当前用户输入，组装成最终发送给 LLM 的 messages[]。
     def build_messages(
         self,
         history: list[dict[str, Any]],

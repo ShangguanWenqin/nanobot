@@ -12,6 +12,7 @@ from loguru import logger
 from nanobot.providers.base import LLMResponse, ToolCallRequest
 
 
+# 每次迭代的hook上下文
 @dataclass(slots=True)
 class AgentHookContext:
     """Mutable per-iteration state exposed to runner hooks."""
@@ -32,6 +33,7 @@ class AgentHookContext:
     session_key: str | None = None
 
 
+# 运行时的hook上下文
 @dataclass(slots=True)
 class AgentRunHookContext:
     """Run-level state snapshot exposed to runner hooks."""
@@ -47,6 +49,7 @@ class AgentRunHookContext:
     exception: BaseException | None = None
 
 
+# 每次turn的hook上下文
 @dataclass(slots=True)
 class AgentTurnHookContext:
     """Turn-local inputs available when constructing per-turn hooks."""
@@ -62,6 +65,7 @@ class AgentTurnHookContext:
     attributes: dict[str, Any] = field(default_factory=dict)
 
 
+# hook 的函数大部分都没有实现，可以根据需要自己实现
 class AgentHook:
     """Minimal lifecycle surface for shared runner customization."""
 
@@ -153,6 +157,7 @@ class AgentHook:
 AgentTurnHookFactory = Callable[[AgentTurnHookContext], AgentHook | None]
 
 
+# Hook集合器
 class CompositeHook(AgentHook):
     """Fan-out hook that delegates to an ordered list of hooks.
 
@@ -165,11 +170,13 @@ class CompositeHook(AgentHook):
 
     def __init__(self, hooks: list[AgentHook]) -> None:
         super().__init__()
-        self._hooks = list(hooks)
+        self._hooks = list(hooks) # 防止append
 
+    # 有一个是true就是true
     def wants_streaming(self) -> bool:
         return any(h.wants_streaming() for h in self._hooks)
 
+    # 安全的执行每个hook的函数，有一个报错不会影响整个agent的运行，只是抛出异常即可
     async def _for_each_hook_safe(self, method_name: str, *args: Any, **kwargs: Any) -> None:
         for h in self._hooks:
             if getattr(h, "_reraise", False):
@@ -264,12 +271,14 @@ class CompositeHook(AgentHook):
     async def after_iteration(self, context: AgentHookContext) -> None:
         await self._for_each_hook_safe("after_iteration", context)
 
+    # 该函数是pipline，每个hook输出的内容是下个hook的输入
     def finalize_content(self, context: AgentHookContext, content: str | None) -> str | None:
         for h in self._hooks:
             content = h.finalize_content(context, content)
         return content
 
 
+# 把 Agent Runtime 运行过程中产生的数据，收集成 SDK 最终返回的 RunResult。
 class SDKCaptureHook(AgentHook):
     """Record tool names and the final message list for ``RunResult``.
 

@@ -1,4 +1,57 @@
-"""Helpers for runtime model preset selection."""
+"""Helpers for runtime model preset selection.
+把“模型配置的名字”转换成Agent 可以执行的 Runtime Snapshot
+
+配置文件
+config
+  │
+  │ model_presets
+  ▼
+ModelPresetConfig
+  │
+  │ 选择 preset name
+  ▼
+model_presets.py
+  │
+  ├── normalize_preset_name()
+  │
+  ├── configured_model_presets()
+  │
+  ├── make_preset_snapshot_loader()
+  │
+  ├── build_static_preset_snapshot()
+  │
+  └── build_runtime_preset_snapshot()
+  │
+  ▼
+ProviderSnapshot
+  │
+  │ provider
+  │ model
+  │ context_window_tokens
+  │ generation settings
+  ▼
+LLMRuntime
+  │
+  ▼
+Agent Loop
+  │
+  ▼
+LLM Provider
+
+假设有配置
+model_presets:
+  fast:
+    model: gpt-4o-mini
+
+  smart:
+    model: claude-sonnet
+
+  default:
+    model: xxx
+
+用户可以通过/model fast 方式来切换模型
+
+"""
 
 from __future__ import annotations
 
@@ -20,7 +73,7 @@ def default_selection_signature(
 ) -> tuple[object, ...] | None:
     return (model_preset, *signature[:2]) if signature else None
 
-
+# 解析model presets 配置
 def configured_model_presets(config: Config) -> dict[str, ModelPresetConfig]:
     return {**config.model_presets, "default": config.resolve_default_preset()}
 
@@ -39,6 +92,13 @@ def load_model_preset_catalog(
     )
 
 
+
+# 返回构建ProviderSnapshot的方法，如果外部传了就用外部，否则用默认的
+"""
+preset_name
+    ↓
+ProviderSnapshot
+"""
 def make_preset_snapshot_loader(
     config: Config,
     provider_snapshot_loader: Callable[..., ProviderSnapshot] | None,
@@ -48,6 +108,7 @@ def make_preset_snapshot_loader(
     return lambda name: build_provider_snapshot(config, preset_name=name)
 
 
+# 构建静态presets快照
 def build_static_preset_snapshot(
     provider: LLMProvider,
     name: str,
@@ -62,7 +123,7 @@ def build_static_preset_snapshot(
         model_preset=name,
     )
 
-
+# 构建运行时presets快照，有外部拿外部的
 def build_runtime_preset_snapshot(
     *,
     name: str,
@@ -75,6 +136,7 @@ def build_runtime_preset_snapshot(
     return build_static_preset_snapshot(provider, name, presets[name])
 
 
+# 标准化presets名
 def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig]) -> str:
     if not isinstance(name, str) or not name.strip():
         raise ValueError("model_preset must be a non-empty string")
@@ -83,3 +145,28 @@ def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig
         raise KeyError(f"model_preset {name!r} not found. Available: {', '.join(presets) or '(none)'}")
     return name
 
+"""
+调用链
+set_model_preset("fast")(loop.py里的)
+        │
+        ▼
+normalize_preset_name()
+        │
+        ▼
+确认 "fast" 合法
+        │
+        ▼
+获取 fast 对应 ModelPresetConfig
+        │
+        ▼
+build_runtime_preset_snapshot()
+        │
+        ▼
+ProviderSnapshot
+        │
+        ▼
+构造 / 更新 LLMRuntime
+        │
+        ▼
+后续 Turn 使用新的 Runtime
+"""

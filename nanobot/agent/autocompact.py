@@ -1,4 +1,5 @@
-"""Auto compact: proactive compression of idle sessions to reduce token cost and latency."""
+"""Auto compact: proactive compression of idle sessions to reduce token cost and latency.
+决定什么时候应该去压缩一个 Session,真正的压缩在memory 里的 consolidator"""
 
 from __future__ import annotations
 
@@ -24,9 +25,10 @@ class AutoCompact:
         self.sessions = sessions
         self.consolidator = consolidator
         self._ttl = session_ttl_minutes
-        self._archiving: set[str] = set()
-        self._summaries: dict[str, tuple[str, datetime]] = {}
+        self._archiving: set[str] = set() # 待压缩key集合
+        self._summaries: dict[str, tuple[str, datetime]] = {} # 压缩结果，保存总结
 
+    # 判断是否超时
     def _is_expired(self, ts: datetime | str | None,
                     now: datetime | None = None) -> bool:
         if self._ttl <= 0 or not ts:
@@ -45,6 +47,7 @@ class AutoCompact:
             return False
         return idle_seconds >= self._ttl * 60
 
+    # 判断是否有可压缩的项，从retain_recent_legal_suffix函数得出，判断待删除项目里是否还有未压缩的消息
     def _has_unarchived_messages(self, key: str) -> bool:
         session = self.sessions.get_or_create(key)
         return session.last_consolidated < len(session.messages)
@@ -53,10 +56,12 @@ class AutoCompact:
     def _format_summary(text: str, last_active: datetime) -> str:
         return f"Previous conversation summary (last active {last_active.isoformat()}):\n{text}"
 
+    # 判断是否为dream session，dream的session不参与 autocompact
     @classmethod
     def _is_internal_session(cls, key: str) -> bool:
         return key.startswith(cls._INTERNAL_SESSION_PREFIXES)
 
+    # 周期性扫描所有 Session，把满足条件的 Session 交给 Consolidator 去后台压缩。
     def check_expired(
         self,
         schedule_background: Callable[[Coroutine[Any, Any, None]], None],
@@ -67,6 +72,7 @@ class AutoCompact:
         now = datetime.now()
         for info in self.sessions.list_sessions():
             key = info.get("key", "")
+            # 两层过滤，过滤dream session，正在压缩的session，正在聊天的session
             if not key or self._is_internal_session(key) or key in self._archiving:
                 continue
             if key in active_session_keys:
@@ -82,11 +88,14 @@ class AutoCompact:
                 self._archiving.add(key)
                 schedule_background(self._archive(key, runtime=runtime))
 
+    # 压缩session，压缩结束后将其从archiving 集合删除
     async def _archive(self, key: str, *, runtime: LLMRuntime) -> None:
+        # 剔除dream session
         if self._is_internal_session(key):
             self._archiving.discard(key)
             return
         try:
+            # 压缩真正执行
             summary = await self.consolidator.compact_idle_session(
                 key,
                 runtime=runtime,
@@ -105,11 +114,13 @@ class AutoCompact:
         finally:
             self._archiving.discard(key)
 
+    # 在开始新一轮对话之前，确保拿到的是最新 Session，并把后台生成的 Summary 安全交给本轮 Prompt。
     def prepare_session(self, session: Session, key: str) -> tuple[Session, str | None]:
         if self._is_internal_session(key):
             self._archiving.discard(key)
             self._summaries.pop(key, None)
             return session, None
+        # 读取最新的session
         if key in self._archiving or self._is_expired(session.updated_at):
             logger.info("Auto-compact: reloading session {} (archiving={})", key, key in self._archiving)
             session = self.sessions.get_or_create(key)

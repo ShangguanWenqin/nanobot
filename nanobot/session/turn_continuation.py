@@ -37,17 +37,17 @@ _STRIPPED_INBOUND_META_KEYS = {
     "original_command",
 }
 
-
+# 识别某个消息是否为内部继续策略创造的
 def internal_continuation_inbound(metadata: Mapping[str, Any] | None) -> bool:
     """True for an inbound message created by an internal continuation policy."""
     return bool(metadata and metadata.get(INTERNAL_CONTINUATION_META) is True)
 
-
+# 当前turn是否安排了一个不可见的继续切片
 def internal_continuation_pending(metadata: Mapping[str, Any] | None) -> bool:
     """True when the current turn scheduled an invisible continuation slice."""
     return bool(metadata and metadata.get(INTERNAL_CONTINUATION_PENDING_META) is True)
 
-
+# 返回继续策略的起始用户可见轮次
 def internal_continuation_run_started_at(metadata: Mapping[str, Any] | None) -> float | None:
     """Return the user-visible run start propagated across continuation slices."""
     if not metadata:
@@ -58,14 +58,14 @@ def internal_continuation_run_started_at(metadata: Mapping[str, Any] | None) -> 
     started_at = float(value)
     return started_at if started_at > 0 else None
 
-
+# 判断当前turn是否要作为用户输入持久化
 def should_persist_user_message(metadata: Mapping[str, Any] | None) -> bool:
     """Return whether this inbound message should be persisted as user input."""
     if metadata and metadata.get(SKIP_USER_PERSIST_META) is True:
         return False
     return not internal_continuation_inbound(metadata)
 
-
+# 预算边界是否要传达给用户
 def should_stream_budget_response(
     *,
     stop_reason: str,
@@ -82,7 +82,7 @@ def should_stream_budget_response(
         message_metadata=message_metadata,
     )
 
-
+# 达到最大迭代次数后要不要给出一个最终回复
 def should_finalize_on_max_iterations(
     *,
     pending_queue_available: bool,
@@ -103,9 +103,10 @@ def should_finalize_on_max_iterations(
         )
     )
 
-
+# 当条件允许时开一个新的 继续轮次 并向pending_queue里新增
 async def maybe_continue_turn(ctx: TurnContext) -> bool:
     """Queue an internal continuation for *ctx* when policy allows it."""
+    # 判读是否继续
     if ctx.session is None or ctx.pending_queue is None:
         return False
     if not _continuation_available(
@@ -115,16 +116,20 @@ async def maybe_continue_turn(ctx: TurnContext) -> bool:
         message_metadata=ctx.msg.metadata,
     ):
         return False
-
+    # 生成新metadata
     metadata = _internal_continuation_metadata(
         ctx.msg.metadata,
         run_started_at=ctx.visible_run_started_at,
     )
+    # 构建新prompt作为content
     content = _goal_continuation_prompt(ctx.session.metadata)
+    # 剥离agent最后一次输出，因为这次输出可能说的是“已经达到最大轮次，结束...”
     messages = _strip_terminal_assistant(ctx.all_messages, ctx.final_content)
+    # 轮次+1，因为当前轮次是一个布置任务的轮次，不是干活的轮次
     _increment_goal_continuation_round(ctx.session.metadata)
 
     logger.info("Turn budget reached; scheduling internal continuation")
+    # 修改上下文，放入pending_queue
     ctx.msg.metadata[INTERNAL_CONTINUATION_PENDING_META] = True
     ctx.final_content = ""
     ctx.all_messages = messages
@@ -141,7 +146,7 @@ async def maybe_continue_turn(ctx: TurnContext) -> bool:
     )
     return True
 
-
+# 保存内部继续开始时的一些边界信息
 def prepare_save_boundary(ctx: TurnContext) -> None:
     """Prepare continuation bookkeeping and the history append boundary."""
     if ctx.session is not None:
@@ -154,7 +159,7 @@ def prepare_save_boundary(ctx: TurnContext) -> None:
         input_persisted_early=ctx.input_persisted_early,
     )
 
-
+# 判断是否可以继续
 def _continuation_available(
     *,
     stop_reason: str,
@@ -169,7 +174,7 @@ def _continuation_available(
         message_metadata=message_metadata,
     )
 
-
+# 清除内部继续状态
 def clear_internal_continuation_state(metadata: MutableMapping[str, Any]) -> None:
     """Reset policy bookkeeping once its owning runtime mode is inactive."""
     if not sustained_goal_active(metadata):
@@ -180,7 +185,7 @@ def reset_goal_continuation_rounds(metadata: MutableMapping[str, Any]) -> None:
     """Start a newly created or replaced goal with a fresh continuation budget."""
     metadata.pop(_GOAL_CONTINUATION_ROUNDS_KEY, None)
 
-
+# 保存开启内部继续的轮次
 def _save_skip_for_turn(
     *,
     message_metadata: Mapping[str, Any] | None,
@@ -200,7 +205,7 @@ def _save_skip_for_turn(
         return initial_message_count - 1
     return initial_message_count
 
-
+# 是否可以继续目标？判断当前是否为长目标模式、是否为长目标turn、是否超过长目标最大迭代轮次
 def _goal_continuation_available(
     session_metadata: Mapping[str, Any] | None,
     *,
@@ -217,7 +222,7 @@ def _goal_continuation_available(
         rounds = 0
     return rounds < max(0, max_rounds)
 
-
+# 增加目标持续轮次（+1）
 def _increment_goal_continuation_round(session_metadata: MutableMapping[str, Any]) -> None:
     try:
         rounds = int(session_metadata.get(_GOAL_CONTINUATION_ROUNDS_KEY) or 0)
@@ -225,7 +230,7 @@ def _increment_goal_continuation_round(session_metadata: MutableMapping[str, Any
         rounds = 0
     session_metadata[_GOAL_CONTINUATION_ROUNDS_KEY] = rounds + 1
 
-
+# 生成内部继续轮次的 metadata
 def _internal_continuation_metadata(
     message_metadata: Mapping[str, Any] | None,
     *,
@@ -240,7 +245,7 @@ def _internal_continuation_metadata(
         metadata.pop(key, None)
     return metadata
 
-
+# 生成目标继续提示词
 def _goal_continuation_prompt(metadata: Mapping[str, Any] | None) -> str:
     lines = goal_state_runtime_lines(metadata)
     if lines:
@@ -260,7 +265,7 @@ def _goal_continuation_prompt(metadata: Mapping[str, Any] | None) -> str:
         "update_goal with action='complete' when the objective is truly finished."
     )
 
-
+# 剥离agent输出的最后一次消息（已达到最大轮次）
 def _strip_terminal_assistant(
     messages: list[dict[str, Any]],
     final_content: str | None,

@@ -7,6 +7,7 @@
 Shared validation and fragment normalization are on the class methods of :class:`~nanobot.agent.tools.base.Schema`.
 
 Note: Python does not allow subclassing ``bool``, so booleans use :class:`BooleanSchema`.
+相关schema的具体实现
 """
 
 from __future__ import annotations
@@ -193,9 +194,10 @@ class ObjectSchema(Schema):
         nullable: bool = False,
         **kwargs: Any,
     ) -> None:
-        self._properties = dict(properties or {}, **kwargs)
-        self._required = list(required or [])
+        self._properties = dict(properties or {}, **kwargs) # 定义“允许哪些字段，以及字段是什么类型”
+        self._required = list(required or []) # 定义哪些参数必须存在
         self._root_description = description
+        # 是否允许额外字段，bool 时好理解，如果 是dict表示额外字段必须是dict的类型
         self._additional_properties = additional_properties
         self._nullable = nullable
 
@@ -203,17 +205,18 @@ class ObjectSchema(Schema):
         t: Any = "object"
         if self._nullable:
             t = ["object", "null"]
-        props = {k: Schema.fragment(v) for k, v in self._properties.items()}
+        props = {k: Schema.fragment(v) for k, v in self._properties.items()} # 子参数的schema
         out: dict[str, Any] = {"type": t, "properties": props}
         if self._required:
             out["required"] = self._required
         if self._root_description:
-            out["description"] = self._root_description
+            out["description"] = self._root_description # 
         if self._additional_properties is not None:
             out["additionalProperties"] = self._additional_properties
         return out
 
 
+# 对外暴露的参数schema接口
 def tool_parameters_schema(
     *,
     required: list[str] | None = None,

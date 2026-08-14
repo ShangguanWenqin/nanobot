@@ -3,6 +3,7 @@
 This bus is separate from :mod:`nanobot.bus.queue`: message bus events are
 user/chat delivery, while runtime events are in-process state notifications
 that optional subscribers such as WebUI adapters may render.
+运行时的状态变化,一共有5种状态,sessionTurn开始,sessionTurn变化,sessionTurn结束,目标变化,运行时模型切换。
 """
 
 from __future__ import annotations
@@ -82,7 +83,7 @@ class RuntimeModelChanged:
     model: str
     model_preset: str | None
 
-
+# "|"可以理解为并集,所以下面的这个类是联合体
 RuntimeEvent = (
     SessionTurnStarted
     | SessionTurnPersisted
@@ -99,10 +100,15 @@ RuntimeEventType = (
     | type[GoalStateChanged]
     | type[RuntimeModelChanged]
 )
+
+# 可调用对象,中括号内是参数和返回值,其实就是后面的session_turn_started等等
 RuntimeEventHandler = Callable[[Any], Awaitable[None] | None]
+# 处理入口包含（运行事件类型,运行事件处理器)
 _HandlerEntry = tuple[RuntimeEventType | None, RuntimeEventHandler]
 
-
+# 可以把 RuntimeEventBus 想成一个通知中心：
+# * subscribe()：某个模块告诉通知中心：“以后这种事件发生时，请通知我。”
+# * publish()：某个模块告诉通知中心：“这种事件刚刚发生了。”
 class RuntimeEventBus:
     """Small in-process pub/sub bus for runtime state.
 
@@ -114,6 +120,7 @@ class RuntimeEventBus:
     def __init__(self) -> None:
         self._handlers: list[_HandlerEntry] = []
 
+    # 订阅就是把一个事件类型和handler放入总线，同时返回一个退出订阅的回调函数
     def subscribe(
         self,
         handler: RuntimeEventHandler,
@@ -128,6 +135,7 @@ class RuntimeEventBus:
 
         return _unsubscribe
 
+    # 接收到一个事件，通知所有订阅该事件的对象
     async def publish(self, event: RuntimeEvent) -> None:
         for event_type, handler in list(self._handlers):
             if event_type is not None and not isinstance(event, event_type):

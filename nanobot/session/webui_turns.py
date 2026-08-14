@@ -1,4 +1,6 @@
-"""Session turn helpers for WebUI-capable WebSocket sessions."""
+"""Session turn helpers for WebUI-capable WebSocket sessions. 
+讲运行时的信息发送给websocket
+"""
 
 from __future__ import annotations
 
@@ -104,7 +106,7 @@ def mark_webui_session(session: Session, metadata: dict[str, Any]) -> bool:
     session.metadata[WEBUI_SESSION_METADATA_KEY] = True
     return True
 
-
+# 清理生成的标题
 def clean_generated_title(raw: str | None) -> str:
     text = (raw or "").strip()
     if not text:
@@ -118,7 +120,7 @@ def clean_generated_title(raw: str | None) -> str:
         text = text[: TITLE_MAX_CHARS - 1].rstrip() + "…"
     return text
 
-
+# 返回生成标题的输入
 def _title_inputs(session: Session) -> tuple[str, str]:
     user_text = ""
     assistant_text = ""
@@ -143,7 +145,7 @@ def _title_inputs(session: Session) -> tuple[str, str]:
             break
     return user_text, assistant_text
 
-
+# 是否成功生成webui的标题，值得注意的是，生成标题是在回答完消息后的间隙，也即异步生成。
 async def maybe_generate_webui_title(
     *,
     sessions: SessionManager,
@@ -219,7 +221,7 @@ async def maybe_generate_webui_title(
     sessions.save(session)
     return True
 
-
+# 看是否需要生成一个标题
 async def maybe_generate_webui_title_after_turn(
     *,
     channel: str,
@@ -238,7 +240,7 @@ async def maybe_generate_webui_title_after_turn(
         model=model,
     )
 
-
+# 如果该会话还在运行，返回开始时间
 def websocket_turn_wall_started_at(chat_id: str) -> float | None:
     """Return ``time.time()`` when the active user turn began, if still running."""
     return _WEBSOCKET_TURN_WALL_STARTED_AT.get(chat_id)
@@ -347,7 +349,7 @@ def build_bus_progress_callback(
     """Compatibility wrapper for the generic bus progress callback."""
     return bus_progress.build_bus_progress_callback(bus, msg)
 
-
+# 发布当前轮次的状态信息
 async def publish_turn_run_status(
     bus: MessageBus,
     msg: InboundMessage,
@@ -360,6 +362,7 @@ async def publish_turn_run_status(
         return
     cid = str(msg.chat_id)
     started_at_event: float | None = None
+    # 记录turn开始时间和运行时间
     if status == "running":
         if isinstance(started_at, int | float) and started_at > 0:
             t0 = float(started_at)
@@ -507,7 +510,7 @@ class WebuiTurnCoordinator:
         return _unsubscribe
 
     @staticmethod
-    def _ctx_msg(ctx: RuntimeEventContext) -> InboundMessage:
+    def _ctx_msg(ctx: RuntimeEventContext) -> InboundMessage: # 运行时事件上下文发到消息队列中
         return InboundMessage(
             channel=ctx.channel,
             sender_id="runtime",
@@ -521,12 +524,14 @@ class WebuiTurnCoordinator:
     def _is_websocket_event(ctx: RuntimeEventContext) -> bool:
         return ctx.channel == "websocket"
 
+    # turn 开始，向webui标记
     def _handle_session_turn_started(self, event: SessionTurnStarted) -> None:
         if not self._is_websocket_event(event.context):
             return
         session = self.sessions.get_or_create(event.context.session_key)
         mark_webui_session(session, event.context.metadata)
 
+    # turn 状态改变，播报现在状态
     async def _handle_run_status_changed(self, event: TurnRunStatusChanged) -> None:
         if not self._is_websocket_event(event.context):
             return
@@ -537,6 +542,7 @@ class WebuiTurnCoordinator:
             started_at=event.started_at,
         )
 
+    # 处理turn结束状态
     async def _handle_turn_completed_event(self, event: TurnCompleted) -> None:
         if not self._is_websocket_event(event.context):
             return
@@ -546,8 +552,10 @@ class WebuiTurnCoordinator:
             session_key=event.context.session_key,
             latency_ms=event.latency_ms,
         )
+        # 后台更新标题，其实self.handle_turn_end里已经更新了，这里应该是兼容老版本
         self._schedule_title_update_from_event(event)
 
+    # 处理目标状态变化
     async def _handle_goal_state_changed(self, event: GoalStateChanged) -> None:
         if not self._is_websocket_event(event.context):
             return
@@ -565,6 +573,7 @@ class WebuiTurnCoordinator:
             ),
         )
 
+    # 处理运行时模型切换，注意chat_id是*，因为换模型是影响所有session的。
     async def _handle_runtime_model_changed(self, event: RuntimeModelChanged) -> None:
         await self.bus.publish_outbound(
             outbound_message_for_event(
@@ -586,6 +595,7 @@ class WebuiTurnCoordinator:
     ) -> None:
         await publish_turn_run_status(self.bus, msg, status, started_at=started_at)
 
+    # 记录延迟时间、记录目标简介、发送到消息总线、后台生成标题
     async def handle_turn_end(
         self,
         msg: InboundMessage,
@@ -608,6 +618,7 @@ class WebuiTurnCoordinator:
                 metadata=msg.metadata,
             )
         )
+
 
     def _schedule_title_update_from_event(self, event: TurnCompleted) -> None:
         title_context = _validated_llm_runtime(event.runtime)

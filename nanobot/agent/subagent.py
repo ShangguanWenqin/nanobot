@@ -44,15 +44,15 @@ class _SubagentOrigin(TypedDict):
     chat_id: str
     session_key: str | None
 
-
+# 实时子agent的状态
 @dataclass(slots=True)
 class SubagentStatus:
     """Real-time status of a running subagent."""
 
     task_id: str
-    label: str
+    label: str # 任务标签
     task_description: str
-    started_at: float          # time.monotonic()
+    started_at: float          # time.monotonic() # 计算消耗时间、和当前时间无关
     phase: str = "initializing"  # initializing | awaiting_tools | tools_completed | final_response | done | error
     iteration: int = 0
     tool_events: list[dict[str, str]] = field(default_factory=list)
@@ -69,6 +69,7 @@ class _SubagentHook(AgentHook):
         self._task_id = task_id
         self._status = status
 
+    # 执行工具前 记录日志
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         for tool_call in context.tool_calls:
             args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
@@ -77,6 +78,7 @@ class _SubagentHook(AgentHook):
                 self._task_id, tool_call.name, args_str,
             )
 
+    # 迭代后从AgentHookContext获取子agent的状态
     async def after_iteration(self, context: AgentHookContext) -> None:
         if self._status is None:
             return
@@ -87,6 +89,7 @@ class _SubagentHook(AgentHook):
             self._status.error = str(context.error)
 
 
+# 管理后台子agent的执行
 class SubagentManager:
     """Manages background subagent execution."""
 
@@ -117,6 +120,7 @@ class SubagentManager:
             raise TypeError("SubagentManager model compatibility argument requires provider")
 
         defaults = AgentDefaults()
+        # spawn() 如果未提供runtime，使用默认兼容的runtime
         self._compat_runtime: LLMRuntime | None = None
         if provider is not None:
             warnings.warn(
@@ -180,6 +184,7 @@ class SubagentManager:
             context_window_tokens=context_window_tokens,
         )
 
+    # 兼容旧的spawn()无参模式，没有显示制定runtime
     def _compat_spawn_runtime(self) -> LLMRuntime:
         runtime = self._compat_runtime
         if runtime is None:
@@ -197,6 +202,7 @@ class SubagentManager:
             context_window_tokens=runtime.context_window_tokens,
         )
 
+    # 构建子agent的工具参数
     def _subagent_tools_config(self) -> ToolsConfig:
         """Build a ToolsConfig scoped for subagent use."""
         return ToolsConfig(
@@ -206,6 +212,7 @@ class SubagentManager:
             restrict_to_workspace=self.restrict_to_workspace,
         )
 
+    # 通过ToolLoader，构建隔离的工具注册
     def _build_tools(
         self,
         workspace: Path | None = None,
@@ -228,6 +235,7 @@ class SubagentManager:
         ToolLoader().load(ctx, registry, scope="subagent")
         return registry
 
+    # 创建子agent任务，后台执行，执行完后通知主agent
     async def spawn(
         self,
         task: str,
@@ -262,6 +270,7 @@ class SubagentManager:
         )
         self._task_statuses[task_id] = status
 
+        # 创建后台任务
         bg_task = asyncio.create_task(
             self._run_subagent(
                 task_id,
@@ -274,6 +283,7 @@ class SubagentManager:
                 workspace_scope,
             )
         )
+        # 建立映射
         self._running_tasks[task_id] = bg_task
         if session_key:
             self._session_tasks.setdefault(session_key, set()).add(task_id)
@@ -286,6 +296,7 @@ class SubagentManager:
                 if not ids:
                     del self._session_tasks[session_key]
 
+        # 添加任务结束的回调函数
         bg_task.add_done_callback(_cleanup)
 
         logger.info("Spawned subagent [{}]: {}", task_id, display_label)
@@ -374,6 +385,7 @@ class SubagentManager:
             status.iteration = payload.get("iteration", status.iteration)
 
         try:
+            # 确定工作目录
             root = workspace_scope.project_path if workspace_scope is not None else self.workspace
             cfg = None
             if workspace_scope is not None:
@@ -393,6 +405,7 @@ class SubagentManager:
                 if self._llm_wall_timeout_for_session
                 else None
             )
+            # 绑定请求上下文，可以子agent可以通过get_request_context 获取以下信息
             request_token = bind_request_context(RequestContext(
                 channel=origin["channel"],
                 chat_id=origin["chat_id"],
@@ -400,6 +413,7 @@ class SubagentManager:
                 session_key=sess_key,
                 runtime=runtime,
             ))
+            # 绑定工作空间范围
             token = bind_workspace_scope(workspace_scope) if workspace_scope is not None else None
             try:
                 result = await self.runner.run(AgentRunSpec(
@@ -425,6 +439,7 @@ class SubagentManager:
             status.phase = "done"
             status.stop_reason = result.stop_reason
 
+            # 发送结果
             if result.stop_reason == "tool_error":
                 status.tool_events = list(result.tool_events)
                 final_result = self._format_partial_progress(result)
@@ -465,6 +480,7 @@ class SubagentManager:
                 )
             return final_result
 
+    # 通过message bus 发送子agent结果
     async def _announce_result(
         self,
         task_id: str,
@@ -491,6 +507,7 @@ class SubagentManager:
         # session key (which accounts for unified sessions) so the result is
         # routed to the correct pending queue (mid-turn injection) instead of
         # being dispatched as a competing independent task.
+        # 使用session_key_override使该消息可以作为mid-turn插入到pending queue 中
         override = origin.get("session_key") or f"{origin['channel']}:{origin['chat_id']}"
         metadata: dict[str, Any] = {
             "injected_event": "subagent_result",
@@ -510,13 +527,16 @@ class SubagentManager:
         await self.bus.publish_inbound(msg)
         logger.debug("Subagent [{}] announced result to {}:{}", task_id, origin['channel'], origin['chat_id'])
 
+    # 将子agent结果转换成str
     @staticmethod
     def _format_partial_progress(result: AgentRunResult) -> str:
         completed = [e for e in result.tool_events if e["status"] == "ok"]
+        # 拿最新的一个失败tool_event
         failure = next((e for e in reversed(result.tool_events) if e["status"] == "error"), None)
         lines: list[str] = []
         if completed:
             lines.append("Completed steps:")
+            # 只拿最后三个成功的tool_events
             for event in completed[-3:]:
                 lines.append(f"- {event['name']}: {event['detail']}")
         if failure:
@@ -531,6 +551,7 @@ class SubagentManager:
             lines.append(f"- {result.error}")
         return "\n".join(lines) or (result.error or "Error: subagent execution failed.")
 
+    # 构建子agent的系统prompt，子agnet模版+work sparse+skill摘要
     def _build_subagent_prompt(self, workspace: Path | None = None) -> str:
         """Build a focused system prompt for the subagent."""
         from nanobot.agent.skills import SkillsLoader
@@ -549,6 +570,7 @@ class SubagentManager:
             skills_summary=skills_summary or "",
         )
 
+    # 取消当前session_key的所有正在运行子agnet
     async def cancel_by_session(self, session_key: str) -> int:
         """Cancel all subagents for the given session. Returns count cancelled."""
         tasks = [self._running_tasks[tid] for tid in self._session_tasks.get(session_key, [])

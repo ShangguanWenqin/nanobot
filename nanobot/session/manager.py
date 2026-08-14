@@ -80,7 +80,7 @@ def _is_provider_state_record_line(line: str) -> bool:
     """Recognize the canonical private record without decoding its opaque payload."""
     return _PROVIDER_STATE_RECORD_PREFIX_RE.match(line) is not None
 
-
+# 返回上下文最大消息数量（根据contextwindow动态调整）
 def replay_max_messages_for_context(context_window_tokens: int | None) -> int:
     if not context_window_tokens or context_window_tokens <= 0:
         return FILE_MAX_MESSAGES
@@ -89,7 +89,7 @@ def replay_max_messages_for_context(context_window_tokens: int | None) -> int:
         max(MIN_REPLAY_MAX_MESSAGES, context_window_tokens // REPLAY_TOKENS_PER_MESSAGE),
     )
 
-
+# 清理消息中的一些手动添加（agent添加的）内容，目前清理的主要是 消息时间、图片路径、生成图片的tool call，否则模型可能会学习这个模式输出。
 def _sanitize_assistant_replay_text(content: str) -> str:
     """Remove internal replay artifacts that the model may have copied before.
 
@@ -105,12 +105,12 @@ def _sanitize_assistant_replay_text(content: str) -> str:
     ]
     return "\n".join(lines).strip()
 
-
+# 生成文字预览
 def _text_preview(content: object) -> str:
     """Return compact display text for session lists."""
     if isinstance(content, str):
         text = content
-    elif isinstance(content, list):
+    elif isinstance(content, list): # 内容是list的话会摘出里面的文本并拼接起来。
         parts: list[str] = []
         for block in cast(list[object], content):
             if isinstance(block, dict):
@@ -125,11 +125,12 @@ def _text_preview(content: object) -> str:
         return ""
     text = _sanitize_assistant_replay_text(text)
     text = re.sub(r"\s+", " ", text).strip()
+    # 文字超过限度会截断显示
     if len(text) > _SESSION_PREVIEW_MAX_CHARS:
         text = text[: _SESSION_PREVIEW_MAX_CHARS - 1].rstrip() + "…"
     return text
 
-
+# 消息预览，子agent的返回内容会被压缩
 def _message_preview_text(message: dict[str, Any]) -> str:
     """Session list preview text; subagent inject blobs are shortened for display."""
     message = public_history_message(message)
@@ -138,7 +139,7 @@ def _message_preview_text(message: dict[str, Any]) -> str:
         content = scrub_subagent_announce_body(content)
     return _text_preview(content)
 
-
+# 返回标题，如果用户修改了就用用户的，否则返回模型生成的（去思考）
 def _metadata_title(metadata: object) -> str:
     if not isinstance(metadata, dict):
         return ""
@@ -171,14 +172,24 @@ class Session:
     """A conversation session."""
 
     key: str  # channel:chat_id
+    # messages，一个 append-only 的对话日志
+    # [
+    #   {
+    #     "role": "user" | "assistant" | "tool",
+    #     "content": "...",
+    #     "timestamp": "...",
+    #     ...
+    #   }
+    # ]
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    metadata: dict[str, Any] = field(default_factory=dict)
-    last_consolidated: int = 0  # Number of messages already consolidated to files
+    metadata: dict[str, Any] = field(default_factory=dict) # 各channel的自有格式数据
+    last_consolidated: int = 0  # Number of messages already consolidated to files 所以 未压缩/为归档的消息是 messages[last_consolidated:]
     provider_state: ProviderConversationState | None = field(default=None, repr=False)
     policy: SessionPolicy = field(default_factory=SessionPolicy, repr=False, compare=False)
 
+    # 如果压缩ind异常，直接置0
     def __post_init__(self) -> None:
         if not isinstance(cast(object, self.metadata), dict):
             self.metadata = {}
@@ -203,7 +214,7 @@ class Session:
         }
         self.messages.append(msg)
         self.updated_at = datetime.now()
-
+    # 返回未压缩的历史消息，先按最大消息数量窗口截取，再按最大token数量截取
     def get_history(
         self,
         max_messages: int = FILE_MAX_MESSAGES,
@@ -217,6 +228,7 @@ class Session:
         History is sliced by message count first (``max_messages``), then by
         token budget from the tail (``max_tokens``) when provided.
         """
+        # 未压缩历史消息
         replay_start = self.last_consolidated
         if replay_start:
             # ``last_consolidated`` is archive progress, not a replay boundary.
@@ -231,30 +243,27 @@ class Session:
 
         replayable = self.messages[replay_start:]
         max_messages = max_messages if max_messages > 0 else FILE_MAX_MESSAGES
-        unarchived_count = len(self.messages) - self.last_consolidated
-        if replay_start < self.last_consolidated and unarchived_count < max_messages:
-            # The archived replay suffix can exceed the nominal count when one
-            # tool-heavy turn spans the boundary. Preserve that complete turn.
-            start_idx = 0
-        else:
-            start_idx = recent_message_start_index(
-                replayable,
-                max_messages,
-                extend_to_user=extend_to_user,
-            )
-        sliced = replayable[start_idx:]
+        start_idx = recent_message_start_index(
+            unconsolidated,
+            max_messages,
+            extend_to_user=extend_to_user,
+        )
+        # 限制消息数量
+        sliced = unconsolidated[start_idx:]
 
         # Avoid starting mid-turn when possible, except for proactive
         # assistant deliveries that the user may be replying to.
+        # 确保输入上下文从用户的输入开始，如果是从tools或者子agent的返回的消息开始，agent可能会答非所问
         for i, message in enumerate(sliced):
             if message.get("role") == "user":
                 start = i
-                if i > 0 and sliced[i - 1].get("_channel_delivery"):
+                if i > 0 and sliced[i - 1].get("_channel_delivery"): # 保留系统主动发送的消息，比如agent：""今天记得吃药"，user:"好的"，不保存前一条消息逻辑不完整
                     start = i - 1
                 sliced = sliced[start:]
                 break
 
         # Drop orphan tool results at the front.
+        # 防止历史消息中有tools返回的结果但没有tools call的消息
         start = find_legal_message_start(sliced)
         if start:
             sliced = sliced[start:]
@@ -278,6 +287,7 @@ class Session:
             # image used to be. Without this, an image-only user turn
             # replays as an empty user message — the assistant's reply then
             # looks like it's responding to nothing.
+            # 用户的图片输入可能没有content，所以需要把content变成图片的占位符，[image: path]，llm才能看到“消息”
             content = content_with_media_breadcrumbs(
                 role,
                 content,
@@ -318,7 +328,7 @@ class Session:
                 if key in message:
                     entry[key] = message[key]
             out.append(entry)
-
+        # 从后向前按照token保留最大的上下文窗口
         if max_tokens > 0 and out:
             kept: list[dict[str, Any]] = []
             used = 0
@@ -331,6 +341,7 @@ class Session:
             kept.reverse()
 
             # Keep history aligned to the first visible user turn.
+            # 确保历史消息从用户消息开始，如果没从kept找到用户消息，就从out里找（即使token可能超过最大值）
             first_user = next((i for i, m in enumerate(kept) if m.get("role") == "user"), None)
             if first_user is not None:
                 kept = kept[first_user:]
@@ -346,20 +357,22 @@ class Session:
                     kept = out[recovered_user:]
 
             # And keep a legal tool-call boundary at the front.
+            # 再次确保历史消息中tool的结果存在对应的tool call
+            # 但是这块可能会导致history不是以用户消息开始。不过，未匹配的tool_result造成的影响更严重。
             start = find_legal_message_start(kept)
             if start:
                 kept = kept[start:]
             out = kept
         return out
-
+    # 清空所有消息
     def clear(self) -> None:
         """Clear all messages and reset session to initial state."""
         self.messages = []
         self.last_consolidated = 0
         self.provider_state = None
         self.updated_at = datetime.now()
-        self.metadata.pop("_last_summary", None)
 
+    # 维护session 窗口，区别于get_history是只读的，该函数是要裁剪session的，返回待删除消息，以及其中有多少已压缩消息
     def retain_recent_legal_suffix(
         self,
         max_messages: int,
@@ -372,6 +385,7 @@ class Session:
         were in the already-consolidated prefix. This method mutates
         self.messages and self.last_consolidated in place.
         """
+        # 两种情况直接返回
         if max_messages <= 0:
             dropped = list(self.messages)
             lc = self.last_consolidated
@@ -390,6 +404,7 @@ class Session:
         before_lc = self.last_consolidated
 
         start_idx = max(0, len(self.messages) - max_messages)
+        # 如果extend_to_user，向前找到最近的user消息
         if extend_to_user:
             recovered_user = next(
                 (i for i in range(start_idx, -1, -1) if self.messages[i].get("role") == "user"),
@@ -400,6 +415,7 @@ class Session:
                 if start_idx > 0 and self.messages[start_idx - 1].get("_channel_delivery"):
                     start_idx -= 1
 
+        # 保留消息
         retained = self.messages[start_idx:]
 
         # Prefer starting at a user turn (or its preceding _channel_delivery) when one exists within the retained window.
@@ -442,6 +458,7 @@ class Session:
         # prefix of the original list.  This cannot be a simple min() because
         # dropped may include messages from *after* the consolidated prefix
         # (e.g. in the else branch).
+        # drop里的消息有多少是已经归档的
         already_consolidated = sum(
             1 for i, m in enumerate(original)
             if i < before_lc and id(m) not in retained_ids
@@ -449,12 +466,18 @@ class Session:
 
         # New last_consolidated = count of retained messages that were inside
         # the old consolidated prefix.
+        # 新的已归档数据
         new_lc = sum(
             1 for i, m in enumerate(original)
             if i < before_lc and id(m) in retained_ids
         )
 
         self.messages = retained
+        """
+            这里需要注意的一点，messages里保存的是session内的所有消息
+            last_consolidated 指的是现在messages内部被归档的前 last_consolidated 条数据
+            所以裁剪messgaes窗口后，新窗口内被归档的消息数量last_consolidated = max(0, self.last_consolidated - dropped)
+        """
         self.last_consolidated = new_lc
         if dropped:
             self.provider_state = None
@@ -464,6 +487,7 @@ class Session:
             already_consolidated_count=already_consolidated,
         )
 
+    # 防止session文件无限增长
     def enforce_file_cap(
         self,
         on_archive: Callable[[list[dict[str, Any]]], None] | None = None,
@@ -480,7 +504,18 @@ class Session:
         result = self.retain_recent_legal_suffix(limit)
         if not result.dropped:
             return
+         # 获取最新的已归档消息数量
+        """
+            原始窗口0,j,已归档数量 k
+            0.....k......j
+            裁剪数量为q
+            裁剪消息
+            0.....q
+            新窗口
+            q......k......j 或 k.....q......j
+            所以 已归档的数量是min(k,q),事实上只有第二种情况需要再归档消息
 
+        """
         archive_chunk = result.dropped[result.already_consolidated_count:]
         if archive_chunk and on_archive:
             try:
@@ -1016,10 +1051,12 @@ class JsonlSessionStore:
     def safe_key(key: str) -> str:
         return safe_filename(key.replace(":", "_"))
 
+    # base64编码key（去除了填充用的=）
     @staticmethod
     def storage_key(key: str) -> str:
         return base64.urlsafe_b64encode(key.encode()).decode().rstrip("=")
 
+    # 将base64编码的key解码成字符串
     @staticmethod
     def decode_storage_key(stem: str) -> str | None:
         try:
@@ -1030,6 +1067,7 @@ class JsonlSessionStore:
         except _SESSION_DATA_ERRORS:
             return None
 
+    # 获取session的保存路径
     @classmethod
     def session_key_from_path(cls, path: Path) -> str | None:
         key = cls.decode_storage_key(path.stem)
@@ -1039,10 +1077,12 @@ class JsonlSessionStore:
 
     def get_session_path(self, key: str) -> Path:
         return self.sessions_dir / f"{self.storage_key(key)}.jsonl"
-
+    
+    # 获取老的session保存路径，self.sessions_dir目录是新的，session持久化的文件名称是旧的，不是base64
     def get_legacy_lossy_path(self, key: str) -> Path:
         return self.sessions_dir / f"{safe_filename(key.replace(':', '_'))}.jsonl"
 
+    # 获取最老的session保存路径
     def get_legacy_session_path(self, key: str) -> Path:
         return self.legacy_sessions_dir / f"{self.safe_key(key)}.jsonl"
 
@@ -1125,6 +1165,7 @@ class JsonlSessionStore:
                 )
             return repaired
 
+    # 修复session，因为jsonl是每行一个对象，所以可以把坏行的数据清除
     def repair(self, key: str, *, path: Path | None = None) -> Session | None:
         with self._session_files_lock:
             return self._repair_unlocked(key, path=path)
@@ -1231,6 +1272,7 @@ class JsonlSessionStore:
 
         try:
             with open(tmp_path, "x", encoding="utf-8") as f:
+                # 第一行永远是metadata
                 metadata_line = {
                     "_type": "metadata",
                     "key": session.key,
@@ -1248,12 +1290,14 @@ class JsonlSessionStore:
                     f.write(json.dumps(provider_state_line, ensure_ascii=False) + "\n")
                 for msg in session.messages:
                     f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+                # 写到磁盘中，持久化保存
                 if fsync:
                     f.flush()
                     os.fsync(f.fileno())
-
+            # 新文件写完后原子替换
             os.replace(tmp_path, path)
 
+            # 真正写到磁盘设备。
             if fsync:
                 with suppress(PermissionError):
                     fd = os.open(str(path.parent), os.O_RDONLY)

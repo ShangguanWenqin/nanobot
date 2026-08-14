@@ -1,4 +1,6 @@
-"""Skills loader for agent capabilities."""
+"""Skills loader for agent capabilities.
+SkillsLoader 不是执行能力管理器，而是 Agent 的“能力说明书 / 操作手册”管理器。
+"""
 
 import json
 import os
@@ -10,6 +12,7 @@ from typing import Any, cast
 import yaml
 
 # Default builtin skills directory (relative to this file)
+# 内置skills目录
 BUILTIN_SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 # Opening ---, YAML body (group 1), closing --- on its own line; supports CRLF.
@@ -69,6 +72,7 @@ class SkillsLoader:
         except OSError:
             return {}
 
+    # 扫描base目录中的skill.md并记录
     def _skill_entries_from_dir(self, base: Path, source: str, *, skip_names: set[str] | None = None) -> list[dict[str, str]]:
         if not base.exists():
             return []
@@ -85,6 +89,7 @@ class SkillsLoader:
             entries.append({"name": name, "path": str(skill_file), "source": source})
         return entries
 
+    # 列出所有的技能，Workspace Skill 优先级高于 Builtin Skill
     def list_skills(self, filter_unavailable: bool = True) -> list[dict[str, str]]:
         """
         List all available skills.
@@ -111,11 +116,13 @@ class SkillsLoader:
                 }
             )
             seen_names.add(name)
+        # 加载内置skill，和workspace同名的skill会跳过
         if self.builtin_skills and self.builtin_skills.exists():
             skills.extend(
                 self._skill_entries_from_dir(self.builtin_skills, "builtin", skip_names=seen_names)
             )
 
+        # 剔除禁用技能 
         if self.disabled_skills:
             disabled = set(self.disabled_skills)
             for legacy, canonical in self._skill_aliases().items():
@@ -123,10 +130,12 @@ class SkillsLoader:
                     disabled.update((legacy, canonical))
             skills = [s for s in skills if s["name"] not in disabled]
 
+        # 如果剔除不可用技能，剔除
         if filter_unavailable:
             return [skill for skill in skills if self._check_requirements(self._get_skill_meta(skill["name"]))]
         return skills
 
+    # 真正加载skill
     def load_skill(self, name: str) -> str | None:
         """
         Load a skill by name.
@@ -143,6 +152,7 @@ class SkillsLoader:
         entry = next((skill for skill in skills if skill["name"] == resolved), None)
         return Path(entry["path"]).read_text(encoding="utf-8") if entry else None
 
+    # 将特定skills加载到context
     def load_skills_for_context(self, skill_names: list[str]) -> str:
         """
         Load specific skills for inclusion in agent context.
@@ -153,6 +163,7 @@ class SkillsLoader:
         Returns:
             Formatted skills content.
         """
+        # 移除了yaml前置内容
         parts = [
             f"### Skill: {name}\n\n{self._strip_frontmatter(markdown)}"
             for name in skill_names
@@ -177,6 +188,7 @@ class SkillsLoader:
                 invoked.append(name)
         return invoked
 
+    # 构建所有技能的摘要（其实就是获取它的description），渐进式披露，真正需要的时候再加载完整的skill
     def build_skills_summary(self, exclude: set[str] | None = None) -> str:
         """
         Build a summary of all skills (name, description, path, availability).
@@ -236,6 +248,7 @@ class SkillsLoader:
         env = [value for value in cast(list[object], env_raw) if isinstance(value, str) and value.strip()] if isinstance(env_raw, list) else []
         return bins, env
 
+    # 获取缺失的依赖
     def _get_missing_requirements(self, skill_meta: dict[str, Any]) -> str:
         """Get a description of missing requirements."""
         required_bins, required_env_vars = self._requirement_lists(skill_meta)
@@ -244,12 +257,14 @@ class SkillsLoader:
             + [f"ENV: {env_name}" for env_name in required_env_vars if not os.environ.get(env_name)]
         )
 
+    # 获取skill的可用性，如果不可用返回原因（给人看的）
     def get_skill_availability(self, name: str) -> tuple[bool, str]:
         """Return whether a skill can run and why not when it cannot."""
         meta = self._get_skill_meta(name)
         available = self._check_requirements(meta)
         return available, "" if available else self._get_missing_requirements(meta)
 
+    # 获取skill的依赖，和当前缺失的（给llm的）
     def get_skill_requirements(self, name: str) -> dict[str, list[str]]:
         """Return explicit command/env requirements and currently missing entries."""
         bins, env = self._requirement_lists(self._get_skill_meta(name))
@@ -260,6 +275,7 @@ class SkillsLoader:
             "missing_env": [value for value in env if not os.environ.get(value)],
         }
 
+    # 获取skill的描述，如果失败就返回名称
     def get_skill_description(self, name: str) -> str:
         """Get the description of a skill from its frontmatter."""
         meta = self.get_skill_metadata(name)
@@ -268,6 +284,7 @@ class SkillsLoader:
             return description
         return name  # Fallback to skill name
 
+    # 移除skill.md 的前置yaml内容（两个 --- 之间的内容）
     def _strip_frontmatter(self, content: str) -> str:
         """Remove YAML frontmatter from markdown content."""
         if not content.startswith("---"):
@@ -277,11 +294,13 @@ class SkillsLoader:
             return content[match.end():].strip()
         return content
 
+    # 统一解析metadata（兼容openclaw）
     def _parse_nanobot_metadata(self, raw: object) -> dict[str, Any]:
         """Extract nanobot/openclaw metadata from a frontmatter field.
 
         ``raw`` may be a dict (already parsed by yaml.safe_load) or a JSON str.
         """
+        # 支持json字符串和dict
         if isinstance(raw, dict):
             data = cast(dict[str, Any], raw)
         elif isinstance(raw, str):
@@ -297,6 +316,7 @@ class SkillsLoader:
         payload = data_object.get("nanobot", data_object.get("openclaw", {}))
         return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
+    # 检查依赖是否满足
     def _check_requirements(self, skill_meta: dict[str, Any]) -> bool:
         """Check if skill requirements are met (bins, env vars)."""
         required_bins, required_env_vars = self._requirement_lists(skill_meta)
@@ -309,6 +329,7 @@ class SkillsLoader:
         raw_meta = self.get_skill_metadata(name) or {}
         return self._parse_nanobot_metadata(raw_meta.get("metadata"))
 
+    # 返回常用skill
     def get_always_skills(self) -> list[str]:
         """Get skills marked as always=true that meet requirements."""
         return [
@@ -321,6 +342,7 @@ class SkillsLoader:
             )
         ]
 
+    # 获取skill的metadata
     def get_skill_metadata(self, name: str) -> dict[str, object] | None:
         """
         Get metadata from a skill's frontmatter.

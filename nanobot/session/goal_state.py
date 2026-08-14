@@ -19,7 +19,7 @@ MAX_GOAL_OBJECTIVE_CHARS = 4000
 _LEGACY_GOAL_STATE_SESSION_KEY = "thread_goal"
 _MAX_OBJECTIVE_WS = 600
 
-
+# 返回session的目标，兼容旧版本
 def _session_goal_raw(metadata: Mapping[str, Any] | None) -> Any:
     if not metadata:
         return None
@@ -27,17 +27,17 @@ def _session_goal_raw(metadata: Mapping[str, Any] | None) -> Any:
         return metadata.get(GOAL_STATE_KEY)
     return metadata.get(_LEGACY_GOAL_STATE_SESSION_KEY)
 
-
+#　迁移后删除老的goal_key
 def discard_legacy_goal_state_key(metadata: MutableMapping[str, Any]) -> None:
     """Remove legacy metadata key after migrating writes to :data:`GOAL_STATE_KEY`."""
     metadata.pop(_LEGACY_GOAL_STATE_SESSION_KEY, None)
 
-
+# 返回sesion目标
 def goal_state_raw(metadata: Mapping[str, Any] | None) -> Any:
     """Return the session goal blob under :data:`GOAL_STATE_KEY` or the legacy key."""
     return _session_goal_raw(metadata)
 
-
+# 返回当前session是否处于长任务模式
 def sustained_goal_active(metadata: Mapping[str, Any] | None) -> bool:
     """True when this session has an active sustained objective."""
     goal = parse_goal_state(goal_state_raw(metadata))
@@ -53,6 +53,7 @@ def explicit_goal_requested(message_metadata: Mapping[str, Any] | None) -> bool:
     return str(message_metadata.get("original_command") or "").strip() == GOAL_COMMAND
 
 
+# 判断当前对话（turn）是否为goal模式，需要注意的是，用户输入/goal开始的这个turn也算
 def sustained_goal_turn(
     metadata: Mapping[str, Any] | None,
     *,
@@ -75,7 +76,7 @@ def parse_goal_state(blob: Any) -> dict[str, Any] | None:
         return cast(dict[str, Any], parsed) if isinstance(parsed, dict) else None
     return None
 
-
+# 将goal转换成strings
 def goal_state_runtime_lines(metadata: Mapping[str, Any] | None) -> list[str]:
     """Lines appended inside the Runtime Context block when a goal is active."""
     if not metadata:
@@ -94,7 +95,7 @@ def goal_state_runtime_lines(metadata: Mapping[str, Any] | None) -> list[str]:
         out.append(f"Summary: {hint}")
     return out
 
-
+# 返回给ws的简短goal
 def goal_state_ws_blob(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     """JSON-safe snapshot for WebSocket ``goal_state`` events (one chat_id per frame)."""
     goal = parse_goal_state(_session_goal_raw(metadata)) if metadata else None
@@ -111,7 +112,7 @@ def goal_state_ws_blob(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
         return blob
     return {"active": False}
 
-
+# goal模式不设置超时时间
 def runner_wall_llm_timeout_s(
     sessions: SessionManager,
     session_key: str | None,

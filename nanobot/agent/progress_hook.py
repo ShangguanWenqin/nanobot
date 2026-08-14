@@ -20,6 +20,7 @@ from nanobot.utils.progress_events import (
 from nanobot.utils.tool_hints import format_tool_hints
 
 
+# 将运行时生命周期的事件转换成用户可见的处理信号
 class AgentProgressHook(AgentHook):
     """Translate runner lifecycle events into user-visible progress signals."""
 
@@ -53,9 +54,11 @@ class AgentProgressHook(AgentHook):
             return None
         return strip_think(text) or None
 
+    # 格式化tool 调用提示
     def _tool_hint(self, tool_calls: list[Any]) -> str:
         return format_tool_hints(tool_calls, max_length=self._tool_hint_max_length)
 
+    # 检测是否支持on_progress
     @staticmethod
     def _on_progress_accepts(cb: Callable[..., Any], name: str) -> bool:
         try:
@@ -66,15 +69,19 @@ class AgentProgressHook(AgentHook):
             return True
         return name in sig.parameters
 
+    # 流式输出
     async def on_stream(self, context: AgentHookContext, delta: str) -> None:
         prev_clean = strip_think(self._stream_buf)
         self._stream_buf += delta
         new_clean = strip_think(self._stream_buf)
         incremental = new_clean[len(prev_clean) :]
 
+        # 提取新的think部分发送
         if await self._think_extractor.feed(self._stream_buf, self.emit_reasoning):
+            # 明确已经发送了推理
             context.streamed_reasoning = True
 
+        # 如果有incremental了，说明推理已经结束了
         if incremental:
             # Answer text has started; close the reasoning segment so the UI can
             # lock the bubble before the answer renders below it.
@@ -82,6 +89,7 @@ class AgentProgressHook(AgentHook):
             if self._on_stream:
                 await self._on_stream(incremental)
 
+    # 流式输出结束，清空self._stream_buf，重置self._think_extractor
     async def on_stream_end(self, context: AgentHookContext, *, resuming: bool) -> None:
         await self.emit_reasoning_end()
         if self._on_stream_end:
@@ -95,6 +103,7 @@ class AgentProgressHook(AgentHook):
         self._stream_buf = ""
         self._think_extractor.reset()
 
+    # 迭代前发送迭代index
     async def before_iteration(self, context: AgentHookContext) -> None:
         if self._on_iteration:
             self._on_iteration(context.iteration)
@@ -161,11 +170,14 @@ class AgentProgressHook(AgentHook):
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         if self._on_progress:
+            # 兼容非流式输出，这块直接展示模型回复
             if not self._on_stream and not context.streamed_content:
                 thought = self._strip_think(context.response.content if context.response else None)
                 if thought:
                     await self._on_progress(thought)
             tool_hint = self._strip_think(self._tool_hint(context.tool_calls))
+            # tool_hint是给用户看的工具调用提示，tool_events是什么？
+            # 给程序看的tool 的调用
             tool_events = [build_tool_event_start_payload(tc) for tc in context.tool_calls]
             await invoke_on_progress(
                 self._on_progress,
@@ -173,9 +185,11 @@ class AgentProgressHook(AgentHook):
                 tool_hint=True,
                 tool_events=tool_events,
             )
+        # 工具调用写入日志
         for tc in context.tool_calls:
             args_str = json.dumps(tc.arguments, ensure_ascii=False)
             logger.info("Tool call: {}({})", tc.name, args_str[:200])
+    # 发送推理的内容，前端决定是否渲染
 
     async def emit_reasoning(self, reasoning_content: str | None) -> None:
         """Publish a reasoning chunk; channel plugins decide whether to render."""
@@ -187,6 +201,7 @@ class AgentProgressHook(AgentHook):
             self._reasoning_open = True
             await self._on_progress(reasoning_content, reasoning=True)
 
+    # 关闭推理流，置self._reasoning_open = False
     async def emit_reasoning_end(self) -> None:
         """Close the current reasoning stream segment, if any was open."""
         if self._reasoning_open and self._on_progress:
@@ -202,6 +217,7 @@ class AgentProgressHook(AgentHook):
             and context.tool_events
             and on_progress_accepts_tool_events(self._on_progress)
         ):
+            # 构建工具事件结束
             tool_events = build_tool_event_finish_payloads(context)
             if tool_events:
                 await invoke_on_progress(

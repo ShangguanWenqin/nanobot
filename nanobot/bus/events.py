@@ -20,6 +20,7 @@ RUNTIME_CONTROL_IMAGE_GENERATION_RELOAD = "image_generation_reload"
 RUNTIME_CONTROL_SESSION_DISCARD = "session_discard"
 
 
+# 非侵入式修改，它为这个类增加了一些函数，比如__init__(初始化类)，__repo__(生成描述)等，一些字段多，逻辑少的类很适合这个装饰器
 @dataclass
 class InboundMessage:
     """Message received from a chat channel."""
@@ -30,14 +31,15 @@ class InboundMessage:
     content: str  # Message text
     timestamp: datetime = field(default_factory=datetime.now)
     media: list[str] = field(default_factory=list)  # Media URLs
-    metadata: dict[str, Any] = field(default_factory=dict)  # Channel-specific data
+    metadata: dict[str, Any] = field(default_factory=dict)  # Channel-specific data 各个channel的特定消息，做外部扩展
     session_key_override: str | None = None  # Optional override for thread-scoped sessions
     require_existing_session: bool = False
 
+    # 函数对象化，可以通过InboundMessage.session_key 获取 不用 InboundMessage.session_key(), 动态计算了session_key
     @property
     def session_key(self) -> str:
         """Unique key for session identification."""
-        return self.session_key_override or f"{self.channel}:{self.chat_id}"
+        return self.session_key_override or f"{self.channel}:{self.chat_id}" # a or b 可以理解为 a? a:b
 
 
 @dataclass
@@ -55,5 +57,6 @@ class OutboundMessage:
     reply_to: str | None = None
     media: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # UI交互action
     buttons: list[list[str]] = field(default_factory=list)
     event: "OutboundEvent | None" = None
