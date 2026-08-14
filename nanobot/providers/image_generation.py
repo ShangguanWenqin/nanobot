@@ -1330,7 +1330,7 @@ class CustomImageGenerationClient(ImageGenerationProvider):
             headers["Authorization"] = f"Bearer {self.api_key}"
         headers.update(self.extra_headers)
 
-        # Codex 订阅没有 Images API key；通过 Responses 的 hosted image_generation tool 请求并解析 SSE 输出。
+        # 自定义后端遵循 OpenAI-compatible Images API：直接向 images/generations POST JSON，响应再统一解码。
         body: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
