@@ -42,7 +42,7 @@ flowchart LR
 
 1. `nanobot/cli/gateway_runtime.py` 先解析有效配置与 workspace，再生成不可变 Provider snapshot 和 session/runtime 服务。
 2. `AgentLoop.from_config` 在 `nanobot/agent/loop.py` 中组装 provider、context、memory、runner、tools、hooks 和 workspace scope resolver。
-3. Cron 与 MCP 先启动；`AgentLoop.run()`、`ChannelManager.start_all()`、本地 trigger 队列、健康服务和配置 watcher 作为并发运行任务启动。
+3. Cron 先完成启动；随后并发调度各运行任务，其中 agent 任务先连接 MCP 再进入 `AgentLoop.run()`，`ChannelManager.start_all()`、本地 trigger 队列、健康服务和配置 watcher 不等待 MCP 连接完成。
 4. 停止时先阻断新 channel 输入，再取消/限时等待运行任务；`AgentLoop.aclose()` 取消活跃 turn、后台任务、subagent 与 exec session；之后才关闭 MCP，并强制 flush session。
 5. `nanobot/process_runtime.py` 在进程外层拥有 PID 身份、文件锁、原子状态文件与平台相关停止信号，不能与 Gateway 内部 async 生命周期混为一层。
 
