@@ -15,6 +15,7 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.providers.base import LLMUsage
 
 
+# 这些类型是代理核心到 Channel 的显式协议；聊天路由仍保留在 OutboundMessage 信封中。
 class OutboundEvent:
     """Marker base for internal outbound runtime events."""
 
@@ -123,6 +124,7 @@ def outbound_message_for_event(
 ) -> OutboundMessage:
     """Build an :class:`OutboundMessage` for a typed event."""
 
+    # 统一从事件推导正文，减少事件字段与信封 content 在不同发布点发生偏离。
     return OutboundMessage(
         channel=channel,
         chat_id=chat_id,
@@ -135,6 +137,7 @@ def outbound_message_for_event(
 def outbound_event_from_message(msg: OutboundMessage) -> OutboundEvent | None:
     """Return the typed outbound event carried by *msg*, if any."""
 
+    # 新协议优先；只有旧扩展未迁移时才回退解析 metadata，兼容逻辑不会覆盖显式事件。
     if msg.event is not None:
         return msg.event
     return _legacy_event_from_metadata(msg)
@@ -172,6 +175,7 @@ def _legacy_event_from_metadata(msg: OutboundMessage) -> OutboundEvent | None:
     while they migrate off reserved metadata flags.
     """
 
+    # 分支顺序体现旧标志的判定优先级，避免一个信封被同时解释成多个生命周期事件。
     meta = msg.metadata or {}
     if meta.get("_runtime_model_updated"):
         return RuntimeModelUpdatedEvent(

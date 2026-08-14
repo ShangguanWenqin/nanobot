@@ -118,6 +118,7 @@ _SUBAGENT_PROVIDER_TASK_META = "subagent_provider_task_id"
 _SUBAGENT_TERMINAL_WAIT_SECONDS = 300.0
 
 
+# AgentLoop 在消息总线与 Runner 之间拥有 turn 编排，阶段状态集中存放在 TurnContext。
 class TurnKind(Enum):
     USER = auto()
     SYSTEM = auto()
@@ -125,6 +126,7 @@ class TurnKind(Enum):
 
 @dataclass
 class TurnContext:
+    # 输入路由、执行快照、持久化进度和交付结果集中于此，Session/Runtime 经对应阶段确认后才可读取。
     msg: InboundMessage
     session_key: str
     turn_id: str
@@ -232,6 +234,7 @@ class AgentLoop:
 
     def llm_runtime(self) -> LLMRuntime:
         """Resolve the immutable default used to admit the next turn."""
+        # admission 在 turn 开始前冻结运行时；热更新只影响后续 turn，不改写已经执行中的请求。
         previous = self.runtime_resolver.runtime
         runtime = self.runtime_resolver.admit()
         if (
@@ -375,6 +378,7 @@ class AgentLoop:
         self._extra_hooks: list[AgentHook] = hooks or []
         self._hook_factories: list[AgentTurnHookFactory] = hook_factories or []
 
+        # Loop 在 turn 内协调 context/session/runner/subagent；外部注入的 ToolRegistry 仍由组合根共享。
         self.context = ContextBuilder(workspace, timezone=timezone, disabled_skills=disabled_skills)
         self.sessions = session_manager or SessionManager(workspace)
         # One file-read/write tracker per logical session. The tool registry is
@@ -694,6 +698,7 @@ class AgentLoop:
 
         Returns True if the message was persisted.
         """
+        # 模型调用前先落盘用户输入并打 pending 标记，使进程中断后能生成可恢复的闭合历史。
         if not turn_continuation.should_persist_user_message(msg.metadata):
             return False
         media_paths = [
@@ -780,6 +785,7 @@ class AgentLoop:
         request: RequestContext,
         tools: ToolRegistry,
     ) -> list[RuntimeContextBlock]:
+        # Channel 预构造块先于工具和全局 provider，注册顺序就是最终提示词中的可信顺序。
         providers = [
             *tools.get_runtime_context_providers(),
             *self._runtime_context_providers,
@@ -1119,6 +1125,7 @@ class AgentLoop:
                 workspace=effective_scope.project_path,
             )
         effective_tools = tools or self.tools
+        # 工具通过 ContextVar 读取当前 session/file/workspace/request，finally 必须逐个 token 恢复以免跨任务泄漏。
         file_state_token = bind_file_states(self._file_state_store.for_session(active_session_key))
         request_token = bind_request_context(request_ctx)
         workspace_token = bind_workspace_scope(effective_scope)
@@ -1314,6 +1321,7 @@ class AgentLoop:
                 # If this session already has an active pending queue (i.e. a task
                 # is processing this session), route the message there for mid-turn
                 # injection instead of creating a competing task.
+                # 活跃会话的新输入进入 runner injection 队列，避免与当前 turn 争抢同一 Session 历史。
                 if effective_key in self._pending_queues:
                     # Non-priority commands must not be queued for injection;
                     # dispatch them directly (same pattern as priority commands).
@@ -1391,6 +1399,7 @@ class AgentLoop:
                 if recovery_task_registered and current_task is not None:
                     recovery_admission.unregister_recovery_task(session_key, current_task)
                 return
+        # 同 session 由锁串行，跨 session 再受可选全局 semaphore 限流，两层边界职责不同。
         lock = self._get_session_lock(session_key)
         gate = self._concurrency_gate or nullcontext()
 
@@ -1475,6 +1484,7 @@ class AgentLoop:
                     # rather than silently lost.  Only remove our own queue; a
                     # later task waiting on the lock must not be able to steal
                     # cleanup ownership.
+                    # 未被本 turn 消费的注入重新发布为新入站，保证取消、异常和注入上限都不会静默丢消息。
                     queue = None
                     if self._pending_queues.get(session_key) is pending:
                         queue = self._pending_queues.pop(session_key, None)
@@ -1680,6 +1690,7 @@ class AgentLoop:
             ctx.on_stream = _tracked_stream
             ctx.on_stream_end = _tracked_stream_end
 
+        # 阶段顺序是核心状态机；command 可短路，其余阶段只依赖前序阶段已经建立的所有权。
         await self._run_turn_stage(ctx, "restore", self._restore_turn)
         await self._run_turn_stage(ctx, "compact", self._compact_session)
         if await self._run_turn_stage(ctx, "command", self._dispatch_command):
@@ -1865,6 +1876,7 @@ class AgentLoop:
     async def _build_turn(self, ctx: TurnContext) -> None:
         session = ctx.require_session()
         runtime = ctx.runtime
+        # Session preset 在 BUILD 才解析为不可变 runtime，恢复历史与模型调用从此使用同一快照。
         if runtime is None:
             runtime = self.runtime_for_session(session)
             ctx.runtime = runtime
@@ -1918,6 +1930,7 @@ class AgentLoop:
             stored_state,
             runtime.model,
         ):
+            # provider continuation state 只在兼容时续接；否则清空，避免把旧模型的 opaque 状态送给新后端。
             current_provider_message = self.context.build_current_message(
                 ctx.msg.content,
                 media=ctx.msg.media if ctx.kind is TurnKind.USER and ctx.msg.media else None,
@@ -2019,6 +2032,7 @@ class AgentLoop:
     async def _persist_turn(self, ctx: TurnContext) -> None:
         runtime = ctx.require_runtime()
         session = ctx.require_session()
+        # continuation 先确定本次应保存的切片，随后统一净化、落盘并清除 pending/checkpoint 标记。
         turn_continuation.prepare_save_boundary(ctx)
 
         if (
@@ -2136,6 +2150,7 @@ class AgentLoop:
         """Save new-turn messages into session, truncating large tool results."""
         from datetime import datetime
 
+        # 从既有历史继承已声明/已完成集合，新增消息也必须维持 tool call 与 result 的一对一关系。
         declared_tool_call_ids = {
             str(tc["id"])
             for m in session.messages
@@ -2176,6 +2191,7 @@ class AgentLoop:
             )
             role, content = entry.get("role"), entry.get("content")
             if role == "assistant" and not content and not entry.get("tool_calls"):
+                # 空 assistant 会破坏下次 provider 请求的角色序列，因此不进入权威 Session 历史。
                 continue  # skip empty assistant messages — they poison session context
             if role == "tool":
                 tool_call_id = entry.get("tool_call_id")

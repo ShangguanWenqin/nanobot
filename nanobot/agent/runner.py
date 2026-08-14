@@ -81,6 +81,7 @@ _MAX_INJECTIONS_PER_TURN = 3
 _MAX_INJECTION_CYCLES = 5
 
 
+# Runner 只拥有一次模型/工具多轮执行，不读取或写入 Session；持久化和最终交付由 AgentLoop 完成。
 def _restore_outer_whitespace(content: str, original: str | None) -> str:
     """Restore boundary whitespace stripped while cleaning one recovered segment."""
     if not original:
@@ -94,6 +95,7 @@ def _restore_outer_whitespace(content: str, original: str | None) -> str:
 
 @dataclass(slots=True)
 class AgentRunSpec:
+    # Spec 把一次执行需要的 provider、工具、hook、预算与回调集中为显式输入。
     """Configuration for a single agent execution."""
 
     initial_messages: list[dict[str, Any]]
@@ -169,6 +171,7 @@ class AgentRunner:
         injections: list[dict[str, Any]],
     ) -> None:
         """Append injected user messages while preserving role alternation."""
+        # 同角色合并前先拆下可信 runtime suffix，再把所有 suffix 重新附到合并正文尾部。
         for injection in injections:
             if (
                 messages
@@ -282,6 +285,7 @@ class AgentRunner:
         if injection_cycles < _MAX_INJECTION_CYCLES:
             injections = await self._drain_injections(spec)
             real_injection = bool(injections)
+        # pending queue 注入优先；只有无新输入且目标仍活跃时才合成持续目标提示。
         if not injections and allow_continuation and assistant_message is not None:
             continuation = self._build_continuation_message(spec)
             if continuation is not None:
@@ -418,6 +422,7 @@ class AgentRunner:
             spec.llm_usage_source or source_from_session_key(spec.session_key)
         )
 
+        # run 级 hook 覆盖成功、业务错误、异常与取消，finally 保证观察者获得唯一清理机会。
         try:
             await hook.before_run(context)
             result = await self._run_core(spec, hook, messages)
@@ -487,6 +492,7 @@ class AgentRunner:
         injection_cycles = 0
         compacted_tool_call_ids: set[str] = set()
         pending_stream_content: str | None = None
+        # controller 统一管理不同 provider 的 continuation 候选，runner 不直接解释 opaque state。
         conversation_state = ProviderConversationStateController(
             provider=spec.runtime.provider,
             model=spec.runtime.model,
@@ -513,6 +519,7 @@ class AgentRunner:
             # those synthetic edits must not shift the append boundary used
             # later when the caller saves only the new turn. A governance
             # failure must stop the run instead of sending an ungoverned copy.
+            # 治理只产生模型副本，messages 继续作为持久化追加边界和 checkpoint 的权威转录。
             messages_for_model = self.context_governor.prepare_for_model(
                 governance_config,
                 messages,
@@ -561,6 +568,7 @@ class AgentRunner:
                 if hook.wants_streaming():
                     await hook.on_stream_end(context, resuming=True)
 
+                # 先记录 assistant tool_calls 并发 awaiting checkpoint，再执行工具，保证中断时能补齐未完成结果。
                 assistant_message = build_assistant_message(
                     response.content or "",
                     tool_calls=[tc.to_openai_tool_call() for tc in response.tool_calls],
@@ -626,6 +634,7 @@ class AgentRunner:
                     if response.provider_state is not None
                     else None
                 )
+                # tools_completed checkpoint 同时携带可续接 provider state，Loop 决定其何时原子写入 Session。
                 await self._emit_checkpoint(
                     spec,
                     {
@@ -704,6 +713,7 @@ class AgentRunner:
                 clean = hook.finalize_content(context, response.content)
 
             if response.finish_reason == "length":
+                # 截断恢复把多次 provider 响应视为同一可见消息，工具调用或注入会重置这条拼接链。
                 if len(length_recovery_parts) < _MAX_LENGTH_RECOVERIES:
                     length_recovery_parts.append(
                         _restore_outer_whitespace(clean or "", original_content)
@@ -993,6 +1003,7 @@ class AgentRunner:
             elif event.get("phase") in {"end", "error"}:
                 active_hosted_tools.pop(call_id, None)
 
+        # 正文流、进度流与非流式请求互斥选择，共用同一最终 LLMResponse 与恢复语义。
         if wants_streaming:
             thinking_buf = ""
 
@@ -1082,6 +1093,7 @@ class AgentRunner:
                     "error": response.content
                     or "Model request failed before the provider-hosted tool completed.",
                 })
+        # 畸形 tool call 在执行、checkpoint 和历史持久化之前剔除，避免污染会话后永久无法重放。
         dropped, all_dropped, original_finish_reason = (
             self._drop_malformed_tool_calls(response)
         )
@@ -1396,6 +1408,7 @@ class AgentRunner:
     ) -> tuple[list[Any], list[dict[str, str]]]:
         hook = hook or AgentHook()
         context = context or AgentHookContext(iteration=0, messages=[])
+        # 只有声明 concurrency_safe 的连续工具进入并发批次，其他调用维持模型给出的顺序屏障。
         batches = self._partition_tool_batches(spec, tool_calls)
         tool_results: list[tuple[Any, dict[str, str]]] = []
         for batch in batches:
@@ -1445,6 +1458,7 @@ class AgentRunner:
         hook = hook or AgentHook()
         context = context or AgentHookContext(iteration=0, messages=[])
         hint = "\n\n[Analyze the error above and try a different approach.]"
+        # 工具边界统一分类外部查询与 workspace/SSRF 错误，并对可重复违规单独计数升级。
         lookup_error = repeated_external_lookup_error(
             tool_call.name,
             tool_call.arguments,
@@ -1593,6 +1607,7 @@ class AgentRunner:
         workspace_violation_counts: dict[str, int],
     ) -> tuple[Any, dict[str, str]] | None:
         """Classify safety-boundary failures, or return ``None`` to pass through."""
+        # SSRF 始终附加禁止绕过的硬边界说明；workspace 违规则可在重复后升级提示但不中止 runtime。
         if self._is_ssrf_violation(raw_text):
             logger.warning(
                 "Tool {} blocked by SSRF guard; returning non-retryable tool error: {}",

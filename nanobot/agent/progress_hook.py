@@ -40,6 +40,7 @@ class AgentProgressHook(AgentHook):
         self._tool_hint_max_length = tool_hint_max_length
         self._stream_buf = ""
         self._think_extractor = IncrementalThinkExtractor()
+        # 推理段是否已打开由 hook 自己拥有，回答正文开始或流结束时都必须恰好闭合一次。
         self._reasoning_open = False
 
     def wants_streaming(self) -> bool:
@@ -65,6 +66,7 @@ class AgentProgressHook(AgentHook):
         return name in sig.parameters
 
     async def on_stream(self, context: AgentHookContext, delta: str) -> None:
+        # 基于累计缓冲重算净正文，避免跨 chunk 的 think 标签被当作可见增量泄漏。
         prev_clean = strip_think(self._stream_buf)
         self._stream_buf += delta
         new_clean = strip_think(self._stream_buf)
@@ -105,6 +107,7 @@ class AgentProgressHook(AgentHook):
         context: AgentHookContext,
         event: dict[str, Any],
     ) -> None:
+        # provider 托管工具不经过本地 ToolRegistry，仍投影为同一版本化进度契约供 UI 聚合。
         if not self._on_progress:
             return
         phase = event.get("phase")
@@ -169,6 +172,7 @@ class AgentProgressHook(AgentHook):
                 tool_hint=True,
                 tool_events=tool_events,
             )
+        # 日志只截取参数预览，完整参数仍由 runner/tool 边界持有。
         for tc in context.tool_calls:
             args_str = json.dumps(tc.arguments, ensure_ascii=False)
             logger.info("Tool call: {}({})", tc.name, args_str[:200])

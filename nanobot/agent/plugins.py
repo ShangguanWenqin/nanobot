@@ -41,6 +41,7 @@ class _SkillCacheEntry:
 _SKILL_CACHE: dict[tuple[Path, Path], _SkillCacheEntry] = {}
 
 
+# 插件清单是本地不可信输入；只有通过 schema、身份和路径检查的组件才进入运行时发现结果。
 @dataclass(frozen=True)
 class AgentPlugin:
     """A validated, locally installed Agent Plugins v1 package."""
@@ -64,6 +65,7 @@ def _installed_plugins(workspace: Path) -> list[AgentPlugin]:
     root = _contained(workspace / "plugins", workspace, directory=True)
     if root is None:
         return []
+    # 同一身份出现两次时整组失效，避免目录遍历顺序暗中决定哪个包获得权限。
     plugins: dict[str, AgentPlugin | None] = {}
     for candidate in _children(root, "Agent Plugins directory"):
         plugin_root = _contained(candidate, root, directory=True)
@@ -218,6 +220,7 @@ def agent_plugin_mcp_servers(
 
     User configuration wins on the unlikely event of a namespaced collision.
     """
+    # 只有用户显式启用且指纹仍匹配的插件才贡献进程型 MCP 配置。
     servers: dict[str, MCPServerConfig] = {}
     for plugin in _installed_plugins(workspace):
         if not _enabled(workspace, plugin):
@@ -253,6 +256,7 @@ def set_agent_plugin_enabled(workspace: Path, name: str, enabled: bool) -> None:
         raise ValueError(f"unknown Agent Plugin '{name}'")
     data = _plugin_data_dir(workspace, plugin.name, create=True)
     marker = data / "enabled"
+    # enabled marker 绑定包内容指纹而非仅绑定路径，包发生变化后必须重新获得用户确认。
     if enabled:
         activation = _activation_marker(plugin)
         if activation is None:
@@ -284,6 +288,7 @@ def _plugin_logo(value: object, plugin_root: Path) -> str | None:
     if not isinstance(value, str) or not value.startswith("./"):
         logger.warning("Ignoring invalid Agent Plugin logo in '{}'", plugin_root)
         return None
+    # logo 必须位于插件根内、匹配允许的真实文件签名并受大小上限约束。
     logo = _contained(plugin_root / value[2:], plugin_root)
     try:
         data = logo.read_bytes() if logo is not None else b""
@@ -342,6 +347,7 @@ def _plugin_mcp_server(raw: object, root: Path, data: Path) -> MCPServerConfig |
     cwd = _stdio_cwd(payload.get("cwd"), root, data)
     if server.type != "stdio" or command is None or cwd is None:
         return None
+    # 保留变量由宿主注入，插件不能预先覆盖后把执行路径指向边界外。
     if {"PLUGIN_ROOT", "PLUGIN_DATA"} & server.env.keys():
         return None
     return server.model_copy(
@@ -362,6 +368,7 @@ def _plugin_mcp_server(raw: object, root: Path, data: Path) -> MCPServerConfig |
 def _stdio_command(value: object, root: Path) -> str | None:
     if not isinstance(value, str) or not value:
         return None
+    # 相对可执行文件必须解析在插件根内；裸命令只允许 PATH 名称，拒绝嵌入路径或 shell 片段。
     if value.startswith("./"):
         executable = _contained(root / value[2:], root)
         return str(executable) if executable is not None else None
@@ -395,6 +402,7 @@ def _expand(value: str, root: Path, data: Path) -> str:
 
 
 def _plugin_data_dir(workspace: Path, name: str, *, create: bool) -> Path:
+    # workspace 哈希隔离不同项目的数据目录，每一级都验证 containment，并在创建时收紧权限。
     workspace_id = sha256(str(workspace.expanduser().resolve()).encode()).hexdigest()[:12]
     current = get_config_path().expanduser().resolve().parent
     for segment in ("plugin-data", workspace_id, name):
@@ -420,6 +428,7 @@ def _enabled_package_fingerprint(workspace: Path, plugin: AgentPlugin) -> str | 
         if not marker.is_file():
             return None
         current = marker.read_text(encoding="utf-8")
+        # 内容或符号链接目标变化都会使旧 marker 失效，并同步清除技能缓存。
         activation = _activation_marker(plugin)
         if activation is None:
             marker.unlink(missing_ok=True)
@@ -492,6 +501,7 @@ def _children(root: Path, label: str) -> list[Path]:
 
 
 def _contained(path: Path, root: Path, *, directory: bool = False) -> Path | None:
+    # 使用 strict realpath 后再判断归属，阻止缺失路径和符号链接借道逃出插件根。
     try:
         resolved = path.resolve(strict=True)
     except OSError:

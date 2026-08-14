@@ -5,6 +5,7 @@ import asyncio
 from nanobot.bus.events import InboundMessage, OutboundMessage
 
 
+# 这是 Channel 与 AgentLoop 之间的异步传输层；会话锁、重试和事件解释分别属于更上层的所有者。
 class MessageBus:
     """
     Async message bus that decouples chat channels from the agent core.
@@ -14,6 +15,7 @@ class MessageBus:
     """
 
     def __init__(self):
+        # 入站与出站使用独立队列，避免慢速平台发送反向阻塞消息接收。
         self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()
         self.outbound: asyncio.Queue[OutboundMessage] = asyncio.Queue()
 

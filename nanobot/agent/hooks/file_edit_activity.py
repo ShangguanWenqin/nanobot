@@ -42,6 +42,7 @@ class FileEditActivityHook(AgentHook):
             else None
         )
         self._workspace = workspace
+        # 一个工具调用可能编辑多个文件，按 call key 保存 tracker 直到成功、失败或取消收尾。
         self._trackers_by_call: dict[str, list[FileEditTracker]] = {}
 
     async def before_iteration(self, context: AgentHookContext) -> None:
@@ -54,6 +55,7 @@ class FileEditActivityHook(AgentHook):
         tool: Any,
         params: Any,
     ) -> None:
+        # 只有回调协议明确支持文件事件时才跟踪，避免向旧 Channel 注入其无法解释的参数。
         if self._on_progress is None or not isinstance(params, dict):
             return
         typed_params = cast(dict[str, Any], params)
@@ -105,6 +107,7 @@ class FileEditActivityHook(AgentHook):
     async def on_finally(self, context: AgentRunHookContext) -> None:
         if context.stop_reason != "cancelled" or not self._trackers_by_call:
             return
+        # 取消路径没有正常 after_execute_tool，必须把仍在进行的编辑显式闭合为错误事件。
         trackers = [
             tracker
             for trackers in self._trackers_by_call.values()
@@ -125,6 +128,7 @@ class FileEditActivityHook(AgentHook):
 
     @staticmethod
     def _tool_call_key(tool_call: ToolCallRequest) -> str:
+        # provider 未给 call id 时使用对象身份兜底，至少保证本进程内同名并发调用不会串线。
         call_id = getattr(tool_call, "id", "") or ""
         return f"{call_id}|{tool_call.name}" if call_id else f"{id(tool_call)}|{tool_call.name}"
 

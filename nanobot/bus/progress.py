@@ -15,6 +15,7 @@ from nanobot.bus.outbound_events import ProgressEvent, outbound_message_for_even
 from nanobot.bus.queue import MessageBus
 
 
+# 该适配器把 runner 的回调形态收束为总线事件，具体平台是否展示进度仍由 ChannelManager 决定。
 def build_bus_progress_callback(
     bus: MessageBus,
     msg: InboundMessage,
@@ -30,6 +31,7 @@ def build_bus_progress_callback(
         reasoning: bool = False,
         reasoning_end: bool = False,
     ) -> None:
+        # 复制原入站路由信息，确保工具、推理与文件编辑进度回到触发本 turn 的会话边缘。
         await bus.publish_outbound(
             outbound_message_for_event(
                 channel=msg.channel,

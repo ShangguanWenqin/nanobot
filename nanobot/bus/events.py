@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from nanobot.bus.outbound_events import OutboundEvent
 
+# 这里定义跨 Channel 与代理核心传递的最小信封；总线只搬运这些对象，不解释其中的业务语义。
 # Optional ``OutboundMessage.metadata`` key for structured, channel-agnostic UI
 # payloads. Value is JSON-serializable with at least ``kind``; rich clients may
 # render it and other channels may ignore unknown keys.
@@ -39,6 +40,7 @@ class InboundMessage:
     @property
     def session_key(self) -> str:
         """Unique key for session identification."""
+        # 显式覆盖值用于统一会话、线程或内部注入；缺省键才由来源 Channel 与聊天标识共同拥有。
         return self.session_key_override or f"{self.channel}:{self.chat_id}"
 
     @property
@@ -65,4 +67,5 @@ class OutboundMessage:
     media: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     buttons: list[list[str]] = field(default_factory=list)
+    # 路由字段留给 Channel，类型化事件承载运行时语义，避免继续扩张保留 metadata 标志。
     event: "OutboundEvent | None" = None

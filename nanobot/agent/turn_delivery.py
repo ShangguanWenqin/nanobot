@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class TurnRoute:
+    # 执行输入与交付目的地分离，system/自动化 turn 可以复用会话却投递到真实 Channel。
     """Turn delivery destination and lifecycle policy, separate from execution input."""
 
     channel: str
@@ -63,6 +64,7 @@ class TurnDeliveryFactory:
         *,
         enable_stream: bool = False,
     ) -> TurnDelivery:
+        # 默认路由先归一化，再允许边缘策略替换；返回类型检查防止策略破坏交付契约。
         route = self._default_route(msg, session_key)
         if self.route_policy is not None:
             route = self.route_policy(msg, session_key, route)
@@ -79,6 +81,7 @@ class TurnDeliveryFactory:
 
     def unrouted(self, msg: InboundMessage, session_key: str) -> TurnDelivery:
         """Create a lifecycle fallback without invoking edge routing policy."""
+        # 异常发生在 route policy 之前时仍需 fallback，保证 idle/fail 生命周期有确定目的地。
         return TurnDelivery(
             bus=self.bus,
             runtime_event_publisher=self.runtime_event_publisher,
@@ -133,6 +136,7 @@ class TurnDelivery:
     _stream_open: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
+        # delivery_message 面向最终 Channel；lifecycle_message 根据策略决定状态事件应归属输入端还是输出端。
         self.delivery_message = dataclasses.replace(
             self.input_message,
             channel=self.route.channel,
@@ -218,6 +222,7 @@ class TurnDelivery:
         metadata = dict(self.route.metadata)
         if self.route.publish_lifecycle and latency_ms is not None:
             metadata["latency_ms"] = int(latency_ms)
+        # 已成功流式交付的后台正文只发完成标记，错误路径仍保留普通消息以免用户看不到失败。
         event = (
             StreamedResponseEvent()
             if self.route.publish_lifecycle
@@ -239,6 +244,7 @@ class TurnDelivery:
         *,
         publish_completion: bool,
     ) -> None:
+        # 最终 response 若改写路由，TurnCompleted 必须跟随实际交付目标而不是原始输入信封。
         completed_channel = self.lifecycle_message.channel
         completed_chat_id = self.lifecycle_message.chat_id
         if response is not None:
@@ -320,6 +326,7 @@ class TurnDelivery:
                 metadata=self.delivery_message.metadata,
             )
         )
+        # merge_next 保持同一可见消息分组；真正闭合后才递增 segment，隔离下一段流。
         self._stream_open = merge_next
         if not merge_next:
             self._stream_segment += 1

@@ -13,6 +13,7 @@ from nanobot.providers.factory import ProviderSnapshot, build_provider_snapshot
 from nanobot.utils.llm_runtime import LLMRuntime, runtime_from_provider_snapshot
 
 
+# 该服务是命令、SDK 与 AgentLoop 共用的模型选择边界，向一次 turn 交付不可变运行时快照。
 class ModelRuntimeResolver:
     """Own model selection and resolve it to immutable execution values.
 
@@ -82,6 +83,7 @@ class ModelRuntimeResolver:
 
     def invalidate(self) -> None:
         """Refresh configured runtime state on the next admission."""
+        # 失效只打标记，真正读配置延迟到下次 admission，避免进行中的 turn 被热更新改写。
         self._refresh_required = True
         self._preset_catalog_refresh_required = True
         self._resolved_presets.clear()
@@ -118,6 +120,7 @@ class ModelRuntimeResolver:
         """Resolve a named preset without changing the selected default."""
         self._refresh_preset_catalog()
         normalized = preset_helpers.normalize_preset_name(name, self._model_presets)
+        # 缓存限定在当前 catalog 世代；invalidate 会整体清空，防止复用过期 provider snapshot。
         cached = self._resolved_presets.get(normalized)
         if cached is not None:
             return cached
@@ -165,6 +168,7 @@ class ModelRuntimeResolver:
 
     def _refresh_provider_generation(self) -> LLMRuntime | None:
         """Adopt direct provider-default changes only for provider-backed defaults."""
+        # 命名 preset 拥有自己的生成参数，只有直接 provider 默认值才跟踪其可变 generation。
         if not self._tracks_provider_generation:
             return None
         runtime = self._runtime
@@ -225,6 +229,7 @@ class ModelRuntimeResolver:
         config: Config | None = None,
     ) -> LLMRuntime | None:
         """Resolve an SDK-style per-run override without mutating the default."""
+        # 单次运行覆盖不写回默认选择，且 model 与 preset 两条来源必须保持互斥。
         if model is not None and model_preset is not None:
             raise ValueError("model and model_preset are mutually exclusive")
         if model_preset is not None:

@@ -86,196 +86,150 @@
   git commit -m "docs: map nanobot runtime for Chinese commentary"
   ```
 
-### Task 2: 基础模型、配置与安全边界注释
+### Task 2: B1 核心代理与消息总线注释
 
 **Files:**
-- Modify: `nanobot/bus/`
-- Modify: `nanobot/config/`
-- Modify: `nanobot/security/`
-- Modify: `nanobot/runtime_context.py`
-- Modify: `nanobot/config_base.py`
-- Modify: `nanobot/optional_features.py`
-- Modify: `nanobot/utils/` 中被配置、上下文与安全链路直接使用的 `include` 文件
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B1` 且状态为 `include` 的 21 个文件
 
 **Interfaces:**
-- Consumes: Task 1 的数据流、配置流和安全边界。
-- Produces: 初学者可以先理解的消息对象、配置解析、路径归属、运行时上下文与安全守卫注释。
+- Consumes: Task 1 的主消息链路、turn 阶段和状态所有权。
+- Produces: AgentLoop/AgentRunner、context、hook、delivery、MessageBus 与 runtime event 的统一中文解释。
 
-- [ ] **Step 1: 阅读本批全部 include 文件及其直接调用者**
-- [ ] **Step 2: 添加模块位置与数据所有权注释**
-- [ ] **Step 3: 为配置别名、动态边界、路径能力和网络限制添加原因注释**
-- [ ] **Step 4: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 5: 更新覆盖台账并提交 `docs: annotate config bus and security in Chinese`**
+- [ ] **Step 1: 阅读 B1 全部 21 个 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释模块位置、turn 上下文、消息/事件接口和数据所有权**
+- [ ] **Step 3: 注释 restore→compact→command→build→run→save→respond、provider/tool 内环、流式交付与注入边界**
+- [ ] **Step 4: 注释 Hook 隔离、模型运行时快照、插件/技能与子代理回注的原因边界**
+- [ ] **Step 5: 执行 21/21 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate agent core and bus in Chinese`**
 
-### Task 3: Agent 核心执行链路注释
+### Task 3: B2 工具、扩展与安全边界注释
 
 **Files:**
-- Modify: `nanobot/agent/loop.py`
-- Modify: `nanobot/agent/runner.py`
-- Modify: `nanobot/agent/context.py`
-- Modify: `nanobot/agent/context_governance.py`
-- Modify: `nanobot/agent/model_runtime.py`
-- Modify: `nanobot/agent/hook.py`
-- Modify: `nanobot/agent/hooks.py`
-- Modify: `nanobot/agent/turn_hooks.py`
-- Modify: `nanobot/agent/turn_delivery.py`
-- Modify: `nanobot/agent/automation_turns.py`
-- Modify: `nanobot/agent/cron_turns.py`
-- Modify: `nanobot/agent/autocompact.py`
-- Modify: `nanobot/agent/` 中其余非工具类 `include` 文件
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B2` 且状态为 `include` 的 35 个文件
 
 **Interfaces:**
-- Consumes: MessageBus、配置、Session、WorkspaceScope、Provider 和 ToolRegistry。
-- Produces: 对一次 turn 从接纳、恢复、构建、运行、保存到投递的完整中文解释。
+- Consumes: B1 的 ContextVar、hook、checkpoint 与 delivery 契约。
+- Produces: ToolRegistry、文件/Shell/Web/MCP、App、workspace、SSRF 与 sandbox 边界注释。
 
-- [ ] **Step 1: 对照 AgentLoop 阶段与 AgentRunner 循环复核调用链**
-- [ ] **Step 2: 注释 turn 上下文、生命周期阶段和状态所有权**
-- [ ] **Step 3: 注释模型调用、工具回填、流式输出、注入、重试与终止条件**
-- [ ] **Step 4: 注释 Hook、自动压缩和投递边界为何位于当前层**
-- [ ] **Step 5: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate agent execution core in Chinese`**
+- [ ] **Step 1: 阅读 B2 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释工具发现、Schema、prepare/execute、并发和结果限制**
+- [ ] **Step 3: 注释路径能力、Shell 限制、SSRF、MCP 生命周期和应用进程边界**
+- [ ] **Step 4: 区分应用级 workspace guard 与系统级 sandbox，不夸大安全保证**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate tools and security in Chinese`**
 
-### Task 4: 会话、记忆、目标与调度状态注释
+### Task 4: B3 Provider、模型与媒体注释
 
 **Files:**
-- Modify: `nanobot/session/`
-- Modify: `nanobot/agent/memory.py`
-- Modify: `nanobot/cron/`
-- Modify: `nanobot/triggers/`
-- Modify: `nanobot/agent/long_task.py`
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B3` 且状态为 `include` 的 24 个文件
 
 **Interfaces:**
-- Consumes: Agent turn 生命周期与工作区命名空间。
-- Produces: 短期会话、长期记忆、持续目标、定时任务和本地触发器的状态关系注释。
+- Consumes: B1 的 provider request/response、tool call 和 conversation state 语义。
+- Produces: Provider registry/factory、后端兼容、Responses 协议、图像生成和音频转写注释。
 
-- [ ] **Step 1: 复核持久化文件、锁、原子写入、压缩与恢复路径**
-- [ ] **Step 2: 注释 Session 与 Memory 的不同职责和数据流**
-- [ ] **Step 3: 注释 Goal、Cron、Automation 和 Trigger 如何产生后续 turn**
-- [ ] **Step 4: 注释崩溃恢复、并发访问和历史污染防护原因**
-- [ ] **Step 5: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate state and scheduling in Chinese`**
+- [ ] **Step 1: 阅读 B3 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释 Provider 公共契约、注册顺序、构造分派和不可变快照**
+- [ ] **Step 3: 注释专用后端、OpenAI-compatible、Responses continuation 与 fallback 差异**
+- [ ] **Step 4: 注释流式解析、reasoning/tool 参数、重试与媒体能力边界**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate providers and media in Chinese`**
 
-### Task 5: 工具、MCP 与子代理系统注释
+### Task 5: B4 Channel 与配对注释
 
 **Files:**
-- Modify: `nanobot/agent/tools/`
-- Modify: `nanobot/agent/subagent.py`
-- Modify: `nanobot/skills/` 下具有 Python 运行逻辑的 `include` 文件
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B4` 且状态为 `include` 的 61 个文件
 
 **Interfaces:**
-- Consumes: AgentRunner 工具调用请求、RequestContext、WorkspaceScope 和应用持有的 MCP 生命周期。
-- Produces: 工具发现、Schema、执行、并发、结果限制、权限与扩展机制注释。
+- Consumes: B1 的 InboundMessage、OutboundEvent、MessageBus 与 delivery 契约。
+- Produces: Channel 发现/生命周期、平台适配、WebSocket 鉴权与 DM 配对注释。
 
-- [ ] **Step 1: 复核内置工具扫描、entry point、MCP 注册与关闭顺序**
-- [ ] **Step 2: 注释 Tool 基类、Registry 和模型可见 Schema**
-- [ ] **Step 3: 注释文件、Shell、Web、MCP、Cron、媒体和运行时控制工具的能力边界**
-- [ ] **Step 4: 注释子代理消息回注、并发和父子上下文隔离**
-- [ ] **Step 5: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate tools and subagents in Chinese`**
+- [ ] **Step 1: 阅读 B4 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释 manifest/registry、BaseChannel、Manager 与多实例生命周期**
+- [ ] **Step 3: 按平台注释事件转换、媒体、分段、流式、重试和协议限制**
+- [ ] **Step 4: 注释 WebSocket 握手信任边界与 pairing store 的 fail-closed/原子写语义**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate channels and pairing in Chinese`**
 
-### Task 6: Provider 与媒体模型适配注释
+### Task 6: B5 会话、记忆与自动化注释
 
 **Files:**
-- Modify: `nanobot/providers/`
-- Modify: `nanobot/audio/`
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B5` 且状态为 `include` 的 24 个文件
 
 **Interfaces:**
-- Consumes: Config、ModelPreset、AgentRunner 消息与 ToolCallRequest。
-- Produces: Provider 注册、选择、协议适配、流式解析、会话状态、回退和媒体能力注释。
+- Consumes: B1/B4 的 turn 生命周期、消息路由与工作区命名空间。
+- Produces: Session、Memory、Goal、Cron、Trigger、压缩/恢复和持久化所有权注释。
 
-- [ ] **Step 1: 从 Registry 和 Factory 追踪每类 Provider 的构造路径**
-- [ ] **Step 2: 注释公共 Provider 契约与请求/响应标准化**
-- [ ] **Step 3: 注释 OpenAI 兼容路径与专用 Provider 分支的差异原因**
-- [ ] **Step 4: 注释流式事件、工具参数、防损坏重放、重试和 fallback**
-- [ ] **Step 5: 注释图像生成与音频转写的独立能力路径**
-- [ ] **Step 6: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 7: 更新覆盖台账并提交 `docs: annotate providers and media in Chinese`**
+- [ ] **Step 1: 阅读 B5 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释 Session 与 Memory 的不同权威存储、锁和原子写路径**
+- [ ] **Step 3: 注释 Goal、Cron、Automation、Trigger 与后续 turn 协调**
+- [ ] **Step 4: 注释压缩、provider state、崩溃恢复、历史可见性和并发防护**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate sessions and automation in Chinese`**
 
-### Task 7: Channel 与 WebSocket 传输注释
+### Task 7: B6 组合根、配置、CLI/API/SDK 与共享基础注释
 
 **Files:**
-- Modify: `nanobot/channels/base.py`
-- Modify: `nanobot/channels/manager.py`
-- Modify: `nanobot/channels/registry.py`
-- Modify: `nanobot/channels/` 各平台包中的 `include` 文件
-- Modify: `nanobot/pairing/`
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B6` 且状态为 `include` 的 57 个文件
 
 **Interfaces:**
-- Consumes: 外部平台事件、MessageBus、Channel 配置和配对状态。
-- Produces: 平台协议到统一消息模型的转换、发送策略、流式能力和生命周期注释。
+- Consumes: B1–B5 已稳定的核心、Provider、Tool、Channel 与状态构件。
+- Produces: 进程入口、装配/清理、配置、命令、SDK、API、Gateway 和通用 utils 注释。
 
-- [ ] **Step 1: 复核 ChannelPlugin 发现、多实例命名、依赖加载和启动/停止顺序**
-- [ ] **Step 2: 注释 BaseChannel 与 Manager 的职责边界**
-- [ ] **Step 3: 按平台注释鉴权、事件转换、媒体处理、分段、流式与重试差异**
-- [ ] **Step 4: 深入注释 WebSocket 复用协议、Gateway 服务组合与 WebUI 专用事件**
-- [ ] **Step 5: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate channels in Chinese`**
+- [ ] **Step 1: 阅读 B6 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释 CLI/SDK/Gateway/API 组合根的构造、共享和关闭顺序**
+- [ ] **Step 3: 注释配置别名、环境解析、动态失效、公开适配层和进程身份边界**
+- [ ] **Step 4: 注释共享 utils 的单一职责，不复制下游子系统内部说明**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate composition and config in Chinese`**
 
-### Task 8: CLI、SDK、Gateway、API 与后端 WebUI 服务注释
+### Task 8: B7 WebUI 后端与协议服务注释
 
 **Files:**
-- Modify: `nanobot/cli/`
-- Modify: `nanobot/command/`
-- Modify: `nanobot/sdk/`
-- Modify: `nanobot/gateway/`
-- Modify: `nanobot/api/`
-- Modify: `nanobot/apps/`
-- Modify: `nanobot/webui/`
-- Modify: `nanobot/nanobot.py`
-- Modify: `nanobot/process_runtime.py`
-- Modify: `nanobot/__main__.py`
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B7` 且状态为 `include` 的 39 个文件
 
 **Interfaces:**
-- Consumes: 已注释的核心、Provider、Channel、Tool 与状态子系统。
-- Produces: 各公开入口如何组合相同运行时能力，以及 WebUI 后端 REST/WS 服务如何分工的注释。
+- Consumes: B4/B5/B6 的 Channel、Session、配置与 Gateway 生命周期。
+- Produces: WebUI HTTP/WS 配套服务、transcript、settings、workspace、media 和 token 注释。
 
-- [ ] **Step 1: 复核各入口创建、共享和关闭 Runtime、ToolRegistry 与 MCPProvider 的方式**
-- [ ] **Step 2: 注释 CLI 命令、SDK 同步/异步接口和 OpenAI 兼容 API 的适配层**
-- [ ] **Step 3: 注释 Gateway 后台服务、Channel 生命周期和健康检查**
-- [ ] **Step 4: 注释 WebUI 后端鉴权、设置、工作区、媒体、转录与临时会话服务**
-- [ ] **Step 5: 执行 Python 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate public entrypoints in Chinese`**
+- [ ] **Step 1: 阅读 B7 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 注释 bootstrap/WS 鉴权、请求路由、mutation 权限和异步复核边界**
+- [ ] **Step 3: 注释 transcript/session 索引、临时聊天、workspace/media/token 服务**
+- [ ] **Step 4: 注释 settings controller/service、动态应用与需重启能力的所有权**
+- [ ] **Step 5: 执行 Python 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate webui backend in Chinese`**
 
-### Task 9: WebUI 基础协议与状态层注释
+### Task 9: B8 WebUI 外壳、设置与工作台注释
 
 **Files:**
-- Modify: `webui/src/lib/` 中所有 `include` 文件
-- Modify: `webui/src/hooks/` 中所有 `include` 文件
-- Modify: `webui/src/providers/` 中所有 `include` 文件
-- Modify: `webui/src/types/` 中所有 `include` 文件
-- Modify: `webui/src/workers/` 中所有 `include` 文件
-- Modify: `webui/src/channel-plugins/` 中所有 `include` 文件
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B8` 且状态为 `include` 的 81 个文件
 
 **Interfaces:**
-- Consumes: Python Gateway 的 HTTP/WebSocket 协议与浏览器运行时。
-- Produces: 客户端连接、请求关联、重连、会话状态、工作区、临时聊天和公共 Hook 的注释。
+- Consumes: B7 的 bootstrap、settings、session 与 workspace 协议。
+- Produces: App/Shell、导航、settings、workbench、i18n 和浏览器状态层注释。
 
-- [ ] **Step 1: 对照 Python 事件类型复核 TypeScript 协议联合类型**
-- [ ] **Step 2: 注释 NanobotClient 的单连接多会话、请求关联、缓存、重连和状态围栏**
-- [ ] **Step 3: 注释 REST 包装、bootstrap、runtime、workspace 与本地持久化工具**
-- [ ] **Step 4: 注释 Context 与 Hook 的状态所有权、订阅和清理时机**
-- [ ] **Step 5: 执行 TypeScript/TSX 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 6: 更新覆盖台账并提交 `docs: annotate webui protocol layer in Chinese`**
+- [ ] **Step 1: 阅读 B8 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 从 App Shell 注释启动鉴权、单 ClientProvider、路由和全局状态所有权**
+- [ ] **Step 3: 注释 session/settings/provider/channel/apps/automation/skills 数据流**
+- [ ] **Step 4: 注释工作台布局、浏览器状态、本地持久化、i18n 与刷新边界**
+- [ ] **Step 5: 执行 TypeScript/TSX 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 6: 审计通过后更新覆盖台账并提交 `docs: annotate webui shell and settings in Chinese`**
 
-### Task 10: WebUI 组件与交互层注释
+### Task 10: B9 WebUI 对话、流式渲染与媒体注释
 
 **Files:**
-- Modify: `webui/src/App.tsx`
-- Modify: `webui/src/main.tsx`
-- Modify: `webui/src/components/` 中所有 `include` 文件
-- Modify: `webui/src/i18n/` 中具有运行逻辑的 `include` 文件
+- Modify: `docs/code-commentary/coverage.md` 中批次为 `B9` 且状态为 `include` 的 70 个文件
 
 **Interfaces:**
-- Consumes: Task 9 的客户端、Context、Hook、类型与工具函数。
-- Produces: Shell 路由、会话列表、消息流、Composer、工作台、设置、自动化、技能和渠道配置 UI 的注释。
+- Consumes: B1/B7 的 turn/event 语义与 B8 的 App/Shell 状态层。
+- Produces: NanobotClient、对话状态、activity、消息渲染、附件与语音交互注释。
 
-- [ ] **Step 1: 从 App Shell 追踪路由、启动鉴权、ClientProvider 与全局状态**
-- [ ] **Step 2: 注释会话选择、消息订阅、运行进度和临时聊天流程**
-- [ ] **Step 3: 注释工作台多窗格模型与持久化不变量**
-- [ ] **Step 4: 注释设置、Provider、Channel、Apps、Automation 和 Skills 界面数据流**
+- [ ] **Step 1: 阅读 B9 全部 include 文件及其必要直接调用者**
+- [ ] **Step 2: 对照 Python 事件注释 NanobotClient 的连接、请求关联、重连、generation/fence 和流聚合**
+- [ ] **Step 3: 注释 thread/activity/run、消息列表、Composer 与临时聊天流程**
+- [ ] **Step 4: 注释附件、预览、音频转写、媒体渲染和迟到事件防护**
 - [ ] **Step 5: 对业务无关 UI 原语执行排除复核，不添加机械注释**
-- [ ] **Step 6: 执行 TypeScript/TSX 纯注释 token 等价审计与 `git diff --check`**
-- [ ] **Step 7: 更新覆盖台账并提交 `docs: annotate webui components in Chinese`**
+- [ ] **Step 6: 执行 TypeScript/TSX 纯注释 token 等价、源码 diff 仅新增注释和 `git diff --check` 审计**
+- [ ] **Step 7: 审计通过后更新覆盖台账并提交 `docs: annotate webui chat and media in Chinese`**
 
 ### Task 11: 全局一致性与最终纯注释审计
 

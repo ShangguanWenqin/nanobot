@@ -40,6 +40,7 @@ from nanobot.utils.prompt_templates import render_template
 
 def session_extra(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return persisted kwargs for turn-attached capabilities."""
+    # 各扩展自行拥有 metadata 解释规则，这里只合并需要随 session 持久化的能力参数。
     return (
         cli_app_utils.session_extra(metadata)
         | mcp_tools.session_extra(metadata)
@@ -103,6 +104,7 @@ class ContextBuilder:
         unified_session: bool = False,
     ) -> str:
         """Build the system prompt from identity, bootstrap files, memory, and skills."""
+        # project workspace 决定项目指令，agent workspace 仍拥有身份、记忆与技能，二者不可混用。
         root = workspace or self.workspace
         parts = [self._get_identity(channel=channel, workspace=root)]
 
@@ -125,6 +127,7 @@ class ContextBuilder:
             if memory and not self._is_template_content(memory, "memory/MEMORY.md"):
                 parts.append(f"# Memory\n\n## Long-term Memory\n{memory}")
 
+        # 始终技能与本轮显式技能加载全文，其余只放摘要以控制系统提示词体积。
         active_skills = self.skills.get_always_skills()
         if active_skills:
             active_content = self.skills.load_skills_for_context(active_skills)
@@ -233,6 +236,7 @@ class ContextBuilder:
         """Load project instructions plus the agent's global profile files."""
         parts: list[str] = []
         project_root = workspace or self.workspace
+        # AGENTS.md 跟随当前项目作用域；SOUL/USER 是代理全局画像，始终从 agent workspace 读取。
         sources = [
             ("AGENTS.md", project_root),
             ("SOUL.md", self.workspace),
@@ -305,6 +309,7 @@ class ContextBuilder:
             current_role=current_role,
             runtime_context_blocks=runtime_context_blocks,
         )
+        # 合并同角色消息以适配 provider 的角色交替要求，同时保留可信 runtime marker。
         if messages[-1].get("role") == current_role:
             last = dict(messages[-1])
             last["content"] = self._merge_message_content(
@@ -331,6 +336,7 @@ class ContextBuilder:
     ) -> dict[str, Any]:
         """Build only the fresh turn message without merging it into history."""
         content = self.build_user_content(current_message, image_paths=media)
+        # 可信运行时块只追加到当前 user 消息，避免 assistant/system 内容被伪装成外部事实。
         blocks: list[RuntimeContextBlock] = []
         if current_role == "user":
             blocks.extend(runtime_context_blocks or ())
@@ -362,6 +368,7 @@ class ContextBuilder:
             raw = p.read_bytes()
             # Re-detect from the bytes used for the request: the file may have
             # changed since attachment routing, and the data URL needs its MIME.
+            # 以实际读取字节重新识别类型，避免附件路由后文件变化导致 data URL 声明与内容不符。
             mime = detect_image_mime(raw) or mimetypes.guess_type(path)[0]
             if not mime or not mime.startswith("image/"):
                 continue

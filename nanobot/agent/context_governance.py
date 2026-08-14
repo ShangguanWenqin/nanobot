@@ -34,6 +34,7 @@ COMPACTABLE_TOOLS = frozenset({
     "web_search", "web_fetch", "list_dir", "list_exec_sessions",
 })
 # read_file is the recovery path for persisted results; exempting it prevents persist->read->persist loops.
+# read_file 是离盘结果的恢复入口，若再次离盘会形成“读取占位符再生成占位符”的循环。
 TOOL_RESULT_OFFLOAD_EXEMPT_TOOLS = frozenset({"read_file"})
 BACKFILL_CONTENT = "[Tool result unavailable — call was interrupted or lost]"
 PLACEHOLDER_TEXTS = frozenset({
@@ -58,6 +59,7 @@ def _tool_call_name_is_valid(tool_call: Any) -> bool:
 
 @dataclass(slots=True)
 class ContextGovernanceConfig:
+    # 这些值描述单次模型请求预算，不拥有或修改持久化 Session 本身。
     provider: LLMProvider
     model: str
     tools: ToolRegistry
@@ -79,6 +81,7 @@ class ContextGovernor:
         messages: list[dict[str, Any]],
         compacted_tool_call_ids: set[str],
     ) -> list[dict[str, Any]]:
+        # 修复、配对、离盘、微压缩与裁剪按固定顺序作用于模型副本，原始历史保持可审计。
         updated = self.strip_placeholder_assistant_messages(messages)
         updated = self.strip_malformed_tool_calls(updated)
         updated = self.drop_orphan_tool_results(updated)
@@ -102,6 +105,7 @@ class ContextGovernor:
         max_output = config.max_tokens if isinstance(config.max_tokens, int) else (
             provider_max_tokens if isinstance(provider_max_tokens, int) else 4096
         )
+        # 输入预算必须预留输出空间和安全余量，不能把完整 context window 都分给历史。
         budget = config.context_block_limit or (
             config.context_window_tokens - max_output - SNIP_SAFETY_BUFFER
         )
@@ -114,6 +118,7 @@ class ContextGovernor:
         tool_name: str,
         result: Any,
     ) -> Any:
+        # provider 需要每个 tool call 都有非空结果；超大正文优先离盘，失败时才回退截断原值。
         result = ensure_nonempty_tool_result(tool_name, result)
         if tool_name in TOOL_RESULT_OFFLOAD_EXEMPT_TOOLS:
             return result
@@ -234,6 +239,7 @@ class ContextGovernor:
         messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Drop invalid tool results before history is sent back to providers."""
+        # 只保留已声明且首次出现的结果，维持 provider 要求的一对一 tool_call/result 契约。
         declared: set[str] = set()
         fulfilled: set[str] = set()
         updated: list[dict[str, Any]] | None = None
@@ -286,6 +292,7 @@ class ContextGovernor:
                 if tid:
                     fulfilled.add(str(tid))
 
+        # 中断遗留的缺口用显式错误补齐，使旧会话能自愈并继续被 provider 接受。
         missing = [(ai, cid, name) for ai, cid, name in declared if cid not in fulfilled]
         if not missing:
             return messages
@@ -348,6 +355,7 @@ class ContextGovernor:
         if estimate <= budget:
             return updated
 
+        # 只压缩本轮新产生且可安全重试的工具结果，并留出余量避免下一迭代立即再次溢出。
         target = int(budget * INFLIGHT_COMPACT_TARGET_RATIO)
         candidates = self._inflight_compaction_candidates(
             config,
@@ -409,6 +417,7 @@ class ContextGovernor:
         if estimate <= budget:
             return messages
 
+        # 系统消息始终保留；对话从尾部反向取样后再校正到合法 user 起点和工具配对边界。
         system_messages = [dict(msg) for msg in messages if msg.get("role") == "system"]
         non_system = [dict(msg) for msg in messages if msg.get("role") != "system"]
         if not non_system:

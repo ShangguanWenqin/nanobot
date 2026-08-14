@@ -20,6 +20,7 @@ from nanobot.agent.progress_hook import AgentProgressHook
 
 @dataclass(slots=True)
 class AgentTurnHookSpec:
+    # 这是 Loop 向 Runner hook 链传递的一次性装配输入，不是跨 turn 的持久状态。
     """Inputs needed to build the hook chain for one agent turn."""
 
     on_progress: Callable[..., Awaitable[None]] | None = None
@@ -43,6 +44,7 @@ class AgentTurnHookSpec:
 
 def build_agent_turn_hook(spec: AgentTurnHookSpec) -> AgentHook:
     """Build the hook chain used by ``AgentRunner`` for one turn."""
+    # 内建 progress hook 始终位于首位，保证核心流式交付先于可选观察者建立。
     progress_hook = AgentProgressHook(
         on_progress=spec.on_progress,
         on_stream=spec.on_stream,
@@ -50,6 +52,7 @@ def build_agent_turn_hook(spec: AgentTurnHookSpec) -> AgentHook:
         session_key=spec.session_key,
         tool_hint_max_length=spec.tool_hint_max_length,
     )
+    # 临时 turn 默认跳过外部 hook，防止只读/预览调用触发持久化型副作用。
     if spec.ephemeral and not spec.run_extra_hooks_for_ephemeral:
         return progress_hook
 
@@ -70,6 +73,7 @@ def build_agent_turn_hook(spec: AgentTurnHookSpec) -> AgentHook:
         try:
             created_hook = factory(turn_context)
         except Exception:
+            # 单个工厂装配失败不应取消 turn，其余已注册 hook 仍按顺序参与运行。
             logger.exception("Agent turn hook factory failed: {}", factory)
             continue
         if created_hook is not None:

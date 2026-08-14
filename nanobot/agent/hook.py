@@ -32,6 +32,7 @@ class AgentHookContext:
     session_key: str | None = None
 
 
+# run 级快照跨越所有迭代，用于 SDK、审计和最终清理；它不替代可变的逐迭代上下文。
 @dataclass(slots=True)
 class AgentRunHookContext:
     """Run-level state snapshot exposed to runner hooks."""
@@ -66,6 +67,7 @@ class AgentHook:
     """Minimal lifecycle surface for shared runner customization."""
 
     def __init__(self, reraise: bool = False) -> None:
+        # 核心交付 hook 可选择让异常冒泡；普通扩展默认由 CompositeHook 隔离故障。
         self._reraise = reraise
 
     def wants_streaming(self) -> bool:
@@ -171,6 +173,7 @@ class CompositeHook(AgentHook):
         return any(h.wants_streaming() for h in self._hooks)
 
     async def _for_each_hook_safe(self, method_name: str, *args: Any, **kwargs: Any) -> None:
+        # 注册顺序就是观察顺序，扩展之间不并发，便于保持进度和状态投影的因果关系。
         for h in self._hooks:
             if getattr(h, "_reraise", False):
                 await getattr(h, method_name)(*args, **kwargs)
@@ -265,6 +268,7 @@ class CompositeHook(AgentHook):
         await self._for_each_hook_safe("after_iteration", context)
 
     def finalize_content(self, context: AgentHookContext, content: str | None) -> str | None:
+        # 最终正文是变换管线而非广播；后一 hook 必须看到前一 hook 的输出，因此错误不能静默跳过。
         for h in self._hooks:
             content = h.finalize_content(context, content)
         return content

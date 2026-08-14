@@ -14,6 +14,7 @@ from nanobot.runtime_context import RuntimeContextBlock
 # Default builtin skills directory (relative to this file)
 BUILTIN_SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
+# 技能发现按 workspace、已启用插件、内建三层合并；先出现的同名技能拥有优先权。
 # Opening ---, YAML body (group 1), closing --- on its own line; supports CRLF.
 _STRIP_SKILL_FRONTMATTER = re.compile(
     r"^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?",
@@ -38,6 +39,7 @@ def parse_skill_metadata(content: str) -> dict[str, object] | None:
 
 def valid_skill_metadata(metadata: dict[str, object], name: str) -> bool:
     """Return whether metadata satisfies the Agent Skills identity contract."""
+    # 目录名就是可调用身份，frontmatter 不能通过另一个 name 重定向到任意技能。
     description = metadata.get("description")
     return (
         metadata.get("name") == name
@@ -99,6 +101,7 @@ class SkillsLoader:
         """
         from nanobot.agent.plugins import enabled_agent_plugin_skills
 
+        # workspace 覆盖插件，插件再覆盖内建；该顺序同时决定提示词和直接加载的唯一来源。
         plugin_skills = enabled_agent_plugin_skills(self.workspace)
         skills = self._skill_entries_from_dir(self.workspace_skills, "workspace")
         seen_names = {entry["name"] for entry in skills}
@@ -118,6 +121,7 @@ class SkillsLoader:
                 self._skill_entries_from_dir(self.builtin_skills, "builtin", skip_names=seen_names)
             )
 
+        # 禁用设置同时展开兼容别名，避免旧名被禁用后仍能借 canonical name 绕过。
         if self.disabled_skills:
             disabled = set(self.disabled_skills)
             for legacy, canonical in self._skill_aliases().items():
@@ -166,6 +170,7 @@ class SkillsLoader:
         """Resolve ``$skill-name`` references to enabled, available skills."""
         if not text:
             return []
+        # 只接受当前可用目录中的 $引用；用户文本不能凭空构造任意磁盘路径。
         available = {
             entry["name"]
             for entry in self.list_skills(filter_unavailable=True)
@@ -220,6 +225,7 @@ class SkillsLoader:
         Returns:
             Markdown-formatted skills summary.
         """
+        # 摘要保留 unavailable 条目及原因，模型可解释缺失能力，但不会误把它当作可执行技能。
         all_skills = self.list_skills(filter_unavailable=False)
         if not all_skills:
             return ""
@@ -320,6 +326,7 @@ class SkillsLoader:
 
         ``raw`` may be a dict (already parsed by yaml.safe_load) or a JSON str.
         """
+        # 同时容纳 YAML 对象与旧版 JSON 字符串，解析失败按无扩展元数据处理。
         if isinstance(raw, dict):
             data = cast(dict[str, Any], raw)
         elif isinstance(raw, str):

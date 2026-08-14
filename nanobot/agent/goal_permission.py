@@ -11,6 +11,7 @@ _GOAL_MUTATION_ALLOWED: ContextVar[bool] = ContextVar(
 )
 
 
+# 持续目标修改能力按当前异步调用链绑定，不能从某个获准 turn 泄漏到后续请求。
 def goal_mutation_allowed() -> bool:
     return _GOAL_MUTATION_ALLOWED.get()
 
@@ -22,6 +23,7 @@ def revoke_goal_mutation_permission() -> None:
 @contextmanager
 def goal_mutation_permission(allowed: bool):
     """Bind goal permission for one agent-run or direct tool execution scope."""
+    # 保存 token 而非退出时硬编码为 False，才能正确恢复外层嵌套作用域的原值。
     token = _GOAL_MUTATION_ALLOWED.set(allowed)
     try:
         yield

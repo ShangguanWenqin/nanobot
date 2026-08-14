@@ -41,6 +41,7 @@ from nanobot.utils.prompt_templates import render_template
 
 
 class _SubagentOrigin(TypedDict):
+    # 后台结果依靠原始路由重新注入主会话，不直接拥有 Channel 发送能力。
     channel: str
     chat_id: str
     session_key: str | None
@@ -150,6 +151,7 @@ class SubagentManager:
         )
         self._run_slots = asyncio.Semaphore(self.max_concurrent_subagents)
         self.runner = AgentRunner()
+        # 子代理共享 exec session 管理器，但每次运行都新建工具注册表与 file state，隔离调用状态。
         self._exec_session_manager = ExecSessionManager()
         self._llm_wall_timeout_for_session = llm_wall_timeout_for_session
         self._running_tasks: dict[str, asyncio.Task[str]] = {}
@@ -210,6 +212,7 @@ class SubagentManager:
         tools_config: ToolsConfig | None = None,
     ) -> ToolRegistry:
         """Build an isolated subagent tool registry via ToolLoader."""
+        # 注册表按 subagent scope 加载，主代理专属工具不会因复用配置而自动下放。
         root = self.workspace if workspace is None else workspace
         registry = ToolRegistry()
         cfg = tools_config if tools_config is not None else self._subagent_tools_config()
@@ -261,6 +264,7 @@ class SubagentManager:
         )
         self._task_statuses[task_id] = status
 
+        # 先登记可观察状态再启动 task，使 runtime-control 不会错过初始化阶段。
         bg_task = asyncio.create_task(
             self._run_subagent(
                 task_id,
@@ -278,6 +282,7 @@ class SubagentManager:
             self._session_tasks.setdefault(session_key, set()).add(task_id)
 
         def _cleanup(_: asyncio.Task[str]) -> None:
+            # done callback 只清索引；结果交付由 _run_subagent 在 task 内完成，避免清理竞态吞掉通知。
             self._running_tasks.pop(task_id, None)
             self._task_statuses.pop(task_id, None)
             if session_key and (ids := self._session_tasks.get(session_key)):
@@ -403,6 +408,7 @@ class SubagentManager:
             status.iteration = payload.get("iteration", status.iteration)
 
         try:
+            # 系统提示使用 project root，工具能力仍从 agent workspace 构造并由 ContextVar 绑定项目作用域。
             root = workspace_scope.project_path if workspace_scope is not None else self.workspace
             cfg = None
             if workspace_scope is not None:
@@ -422,6 +428,7 @@ class SubagentManager:
                 if self._llm_wall_timeout_for_session
                 else None
             )
+            # RequestContext 与 WorkspaceScope 都限定在本次 async 调用链，并在 finally 中按 token 精确恢复。
             request_token = bind_request_context(RequestContext(
                 channel=origin["channel"],
                 chat_id=origin["chat_id"],
@@ -519,6 +526,7 @@ class SubagentManager:
         # session key (which accounts for unified sessions) so the result is
         # routed to the correct pending queue (mid-turn injection) instead of
         # being dispatched as a competing independent task.
+        # 强制使用主 turn 的有效 session key，活跃会话会把结果放入 pending queue 而非开启竞争 turn。
         override = origin.get("session_key") or f"{origin['channel']}:{origin['chat_id']}"
         metadata: dict[str, Any] = {
             "injected_event": "subagent_result",
@@ -563,6 +571,7 @@ class SubagentManager:
 
     async def cancel_by_session(self, session_key: str) -> int:
         """Cancel all subagents for the given session. Returns count cancelled."""
+        # 取消模型 task 后还要终止该 owner 的长驻 exec session，避免子进程脱离会话继续运行。
         tasks = [self._running_tasks[tid] for tid in self._session_tasks.get(session_key, [])
                  if tid in self._running_tasks and not self._running_tasks[tid].done()]
         for t in tasks:

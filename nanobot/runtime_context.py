@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias, cast
 if TYPE_CHECKING:
     from nanobot.agent.tools.context import RequestContext
 
+# RuntimeContext 是系统认可的模型侧元数据；它与调用者可控的 RequestContext attributes 刻意分道。
 RUNTIME_CONTEXT_HISTORY_META = "_runtime_context"
 RUNTIME_CONTEXT_MESSAGE_META = "runtime_context"
 RUNTIME_CONTEXT_INPUT_META = "_runtime_context_blocks"
@@ -65,6 +66,7 @@ def webui_quote_runtime_context(metadata: Mapping[str, Any]) -> RuntimeContextBl
     quote = normalize_webui_quote(metadata.get(WEBUI_QUOTE_METADATA))
     if not quote:
         return None
+    # JSON 编码并转义边界括号，防止引用正文伪造 Runtime Context 的闭合标记。
     encoded_quote = json.dumps(quote, ensure_ascii=False)
     encoded_quote = encoded_quote.replace("[", "\\u005b").replace("]", "\\u005d")
     content = wrap_runtime_context_lines([
@@ -111,6 +113,7 @@ async def resolve_runtime_context(
     request: RequestContext,
 ) -> list[RuntimeContextBlock]:
     """Resolve providers once, sequentially, in the caller's stable order."""
+    # 串行保持注册顺序稳定，保证不同 provider 对最终提示词的排列可复现。
     blocks: list[RuntimeContextBlock] = []
     for provider in providers:
         blocks.extend(normalize_runtime_context_blocks(await provider(request)))
@@ -125,6 +128,7 @@ def append_runtime_context(
     if not blocks:
         return content, None
 
+    # 持久化精确 suffix 或 block 副本，公开历史才能只剥离系统追加的部分而不误删同文用户内容。
     rendered = [block.content for block in blocks]
     sources = [block.source for block in blocks]
     if isinstance(content, list):
@@ -150,6 +154,7 @@ def detach_runtime_context(
     marker: Mapping[str, Any],
 ) -> tuple[Any, list[str], list[dict[str, Any]]] | None:
     """Detach one validated runtime-context suffix for safe message merging."""
+    # 只有版本和尾部内容同时匹配才允许拆分；过期或被篡改的 marker 采用失败关闭。
     marker_data = marker
     if marker_data.get("version") != 1:
         return None
@@ -214,6 +219,7 @@ def reattach_runtime_context(
 
 def public_history_message(message: Mapping[str, Any]) -> dict[str, Any]:
     """Return a user-visible copy with trusted runtime context removed exactly."""
+    # 对副本操作，模型历史中的可信上下文仍可用于续跑，展示层只获得净化后的消息。
     cleaned = deepcopy(dict(message))
     marker = cleaned.pop(RUNTIME_CONTEXT_HISTORY_META, None)
     if not isinstance(marker, Mapping):

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from nanobot.utils.llm_runtime import LLMRuntime
 
 
+# 与聊天总线不同，这些事件只在进程内同步运行状态，不承担用户消息交付。
 @dataclass(frozen=True)
 class RuntimeEventContext:
     """Routing context common to turn-scoped runtime events."""
@@ -151,6 +152,7 @@ class RuntimeEventBus:
         return _unsubscribe
 
     async def publish(self, event: RuntimeEvent) -> None:
+        # 复制订阅列表，使处理器在回调内退订时不会扰乱本轮既定顺序。
         for event_type, handler in list(self._handlers):
             if event_type is not None and not isinstance(event, event_type):
                 continue
@@ -159,6 +161,7 @@ class RuntimeEventBus:
                 if inspect.isawaitable(result):
                     await result
             except Exception:
+                # 观察者故障被隔离，状态投影失败不能反向终止真实 agent turn。
                 logger.exception("runtime event handler failed for {}", type(event).__name__)
 
     def publish_nowait(self, event: RuntimeEvent) -> None:
@@ -179,6 +182,7 @@ class RuntimeEventPublisher:
 
     def __init__(self, bus: RuntimeEventBus | None = None) -> None:
         self.bus = bus or RuntimeEventBus()
+        # 延迟与运行时按 session 暂存，TurnCompleted 才一次性消费并发布权威收尾快照。
         self._turn_latency_ms: dict[str, int] = {}
         self._turn_runtime: dict[str, LLMRuntime] = {}
         self._turn_usage: dict[str, LLMUsage] = {}

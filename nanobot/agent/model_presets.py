@@ -14,6 +14,7 @@ PresetSnapshotLoader = Callable[[str], ProviderSnapshot]
 PresetCatalogLoader = Callable[[], Mapping[str, ModelPresetConfig]]
 
 
+# 签名只保留默认选择相关片段，用于区分“配置默认值变化”和“用户主动选择仍有效”。
 def default_selection_signature(
     signature: tuple[object, ...] | None,
     model_preset: str | None = None,
@@ -70,12 +71,14 @@ def build_runtime_preset_snapshot(
     provider: LLMProvider,
     loader: PresetSnapshotLoader | None,
 ) -> ProviderSnapshot:
+    # 动态 loader 存在时以最新配置重建；静态路径仅复用已经注入的 provider 实例。
     if loader is not None:
         return replace(loader(name), model_preset=name)
     return build_static_preset_snapshot(provider, name, presets[name])
 
 
 def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig]) -> str:
+    # 在解析边界拒绝空值和未知名称，避免下游把配置错误误当成 provider 故障。
     if not isinstance(name, str) or not name.strip():
         raise ValueError("model_preset must be a non-empty string")
     name = name.strip()
@@ -85,3 +88,4 @@ def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig
     if len(matches) == 1:
         return matches[0]
     raise KeyError(f"model_preset {name!r} not found. Available: {', '.join(presets) or '(none)'}")
+# 校验后的名称才交给 resolver 缓存，避免同一 preset 因首尾空白产生多个运行时身份。
