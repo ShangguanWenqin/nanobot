@@ -31,7 +31,7 @@ def build_bus_progress_callback(
         reasoning: bool = False,
         reasoning_end: bool = False,
     ) -> None:
-        # 复制原入站路由信息，确保工具、推理与文件编辑进度回到触发本 turn 的会话边缘。
+        # 复制 TurnDelivery 已解析的交付路由与 metadata，使进度跟随本 turn 的实际目的地。
         await bus.publish_outbound(
             outbound_message_for_event(
                 channel=msg.channel,

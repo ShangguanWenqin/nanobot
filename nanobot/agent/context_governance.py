@@ -59,7 +59,7 @@ def _tool_call_name_is_valid(tool_call: Any) -> bool:
 
 @dataclass(slots=True)
 class ContextGovernanceConfig:
-    # 这些值描述单次模型请求预算，不拥有或修改持久化 Session 本身。
+    # 这些值汇集一次 Runner 执行中各模型副本治理所需的依赖与预算，不拥有持久化 Session。
     provider: LLMProvider
     model: str
     tools: ToolRegistry

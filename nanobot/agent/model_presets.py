@@ -81,6 +81,7 @@ def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig
     # 在解析边界拒绝空值和未知名称，避免下游把配置错误误当成 provider 故障。
     if not isinstance(name, str) or not name.strip():
         raise ValueError("model_preset must be a non-empty string")
+    # 归一化后再交给 resolver 缓存，避免同一 preset 因首尾空白产生多个运行时身份。
     name = name.strip()
     if name in presets:
         return name
@@ -88,4 +89,3 @@ def normalize_preset_name(name: str | None, presets: dict[str, ModelPresetConfig
     if len(matches) == 1:
         return matches[0]
     raise KeyError(f"model_preset {name!r} not found. Available: {', '.join(presets) or '(none)'}")
-# 校验后的名称才交给 resolver 缓存，避免同一 preset 因首尾空白产生多个运行时身份。
