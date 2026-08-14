@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 MAX_SKILL_NAME_LENGTH = 64
+# 资源根只允许这三类固定目录，避免参数直接成为任意子路径。
 ALLOWED_RESOURCES = {"scripts", "references", "assets"}
 
 SKILL_TEMPLATE = """---
@@ -194,6 +195,7 @@ Note: This is a text placeholder. Actual assets can be any file type.
 def normalize_skill_name(skill_name: str) -> str:
     """Normalize a skill name to lowercase hyphen-case."""
     normalized = skill_name.strip().lower()
+    # 名称规整后只含小写字母、数字和连字符，因此拼接时始终是输出根的单个子目录。
     normalized = re.sub(r"[^a-z0-9]+", "-", normalized)
     normalized = normalized.strip("-")
     normalized = re.sub(r"-{2,}", "-", normalized)
@@ -276,6 +278,7 @@ def init_skill(
     Returns:
         Path to created skill directory, or None if error
     """
+    # --path 是脚本调用者明确选择的输出根，不经过运行时工具的 workspace guard。
     # Determine skill directory path
     skill_dir = Path(path).resolve() / skill_name
 
@@ -304,6 +307,7 @@ def init_skill(
         print(f"[ERROR] Error creating SKILL.md: {e}")
         return None
 
+    # 创建是顺序进行的；后续步骤失败会返回 None，但已写入的模板或目录不会事务性回滚。
     # Create resource directories if requested
     if resources:
         try:

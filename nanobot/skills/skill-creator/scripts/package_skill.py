@@ -26,6 +26,7 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _cleanup_partial_archive(skill_filename: Path) -> None:
+    # 这里只清理目标归档路径；它不区分本次半成品与此前已有的同名归档。
     if skill_filename.exists():
         with suppress(OSError):
             skill_filename.unlink()
@@ -59,6 +60,7 @@ def package_skill(skill_path: str | Path, output_dir: str | Path | None = None) 
         print(f"[ERROR] SKILL.md not found in {skill_path}")
         return None
 
+    # 先做结构/frontmatter 校验；它不审计 scripts 中代码的行为或权限。
     # Run validation before packaging
     print("Validating skill...")
     valid, message = validate_skill(skill_path)
@@ -84,6 +86,7 @@ def package_skill(skill_path: str | Path, output_dir: str | Path | None = None) 
     resolved_archive = skill_filename.resolve()
 
     for file_path in skill_path.rglob("*"):
+        # 打包阶段比快速校验更严格：任何符号链接都拒绝，防止归档内容指向源目录之外。
         # Fail closed on symlinks so the packaged contents are explicit and predictable.
         if file_path.is_symlink():
             print(f"[ERROR] Symlink not allowed in packaged skill: {file_path}")
@@ -96,11 +99,13 @@ def package_skill(skill_path: str | Path, output_dir: str | Path | None = None) 
 
         if file_path.is_file():
             resolved_file = file_path.resolve()
+            # 对每个普通文件再次用解析路径做包含判断，归档成员名则始终取源根相对路径。
             if not _is_within(resolved_file, skill_path):
                 print(f"[ERROR] File escapes skill root: {file_path}")
                 _cleanup_partial_archive(skill_filename)
                 return None
             # If output lives under skill_path, avoid writing archive into itself.
+            # 输出目录位于 skill 内时排除归档本身，避免递归把正在生成的文件装入自己。
             if resolved_file == resolved_archive:
                 print(f"[WARN] Skipping output archive: {file_path}")
                 continue

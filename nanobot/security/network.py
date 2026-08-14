@@ -28,6 +28,7 @@ _BLOCKED_NETWORKS = [
 ]
 
 _URL_RE = re.compile(r"https?://[^\s\"'`;|<>]+", re.IGNORECASE)
+# 白名单是进程级运维配置，会影响随后所有 SSRF 判断，不能由单次工具调用临时扩大。
 _allowed_networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
 
 
@@ -63,6 +64,7 @@ def _normalize_addr(
     ``127.0.0.0/8`` nor ``::1/128``.  Converting it to IPv4 ensures
     blocklist/allowlist checks work correctly.
     """
+    # 先还原 IPv4-mapped IPv6，防止 127/8、169.254/16 等地址借映射形式绕过网段匹配。
     if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
         return addr.ipv4_mapped
     return addr
@@ -117,6 +119,7 @@ def resolve_url_target(
         if not trust_remote_dns:
             return False, f"Cannot resolve hostname: {hostname}", ()
 
+        # 仅在受信代理负责最终 DNS/出站时允许本地无法解析的普通域名；字面私网地址仍拒绝。
         normalized_hostname = hostname.rstrip(".").lower()
         if normalized_hostname == "localhost" or normalized_hostname.endswith(".localhost"):
             return False, f"Blocked local/internal hostname: {hostname}", ()
@@ -138,6 +141,7 @@ def resolve_url_target(
         addrs.append(addr)
     if allow_loopback and _is_allowed_loopback_target(hostname, addrs):
         return True, "", tuple(dict.fromkeys(str(_normalize_addr(addr)) for addr in addrs))
+    # 多地址域名必须每个解析结果都通过；任一私网/元数据地址都会使整个目标失败。
     for addr in addrs:
         if _is_private(addr):
             return False, f"Blocked: {hostname} resolves to private/internal address {addr}", ()
@@ -280,6 +284,7 @@ class PinnedDNSAsyncTransport(httpx.AsyncBaseTransport):
         ok, error, resolved_ips = resolve_url_target(url, allow_loopback=self._allow_loopback)
         if not ok:
             raise UnsafeURLRequestError(error, request=request)
+        # 临时替换的是进程全局 resolver，所以用类级锁串行覆盖、请求和恢复这一完整区间。
         async with self._resolver_lock:
             with pin_resolved_url_dns(url, resolved_ips):
                 return await self._inner.handle_async_request(request)
@@ -322,6 +327,7 @@ def validate_resolved_url(url: str) -> tuple[bool, str]:
 
 def contains_internal_url(command: str, *, allow_loopback: bool = False) -> bool:
     """Return True if the command string contains a URL targeting an internal/private address."""
+    # 这是供 Shell guard 使用的文本扫描助手，不等价于对子进程实施网络命名空间隔离。
     for m in _URL_RE.finditer(command):
         url = m.group(0)
         ok, _ = validate_url_target(url, allow_loopback=allow_loopback)

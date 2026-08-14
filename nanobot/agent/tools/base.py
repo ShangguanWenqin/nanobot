@@ -26,6 +26,7 @@ _JSON_TYPE_MAP: dict[str, type | tuple[type, ...]] = {
     "object": dict,
 }
 
+# Schema 是模型函数定义与运行时校验共用的最小协议，具体片段类型集中在 schema.py。
 
 class Schema(ABC):
     """Abstract base for JSON Schema fragments describing tool parameters.
@@ -53,6 +54,7 @@ class Schema(ABC):
 
         Used by :class:`Tool` and each concrete Schema's :meth:`validate_value`.
         """
+        # 校验递归沿用字段路径，因此嵌套对象和数组错误能在执行工具前精确定位。
         raw_type = schema.get("type")
         nullable = (isinstance(raw_type, list) and "null" in raw_type) or schema.get("nullable", False)
         t = Schema.resolve_json_schema_type(raw_type)
@@ -153,6 +155,7 @@ class ToolResult(str):
 
     @classmethod
     def error(cls, content: str) -> ToolResult:
+        # 错误状态不能再靠 "Error:" 文本猜测；Runner 以 is_error 决定 hook 与恢复策略。
         return cls(content, is_error=True)
 
 
@@ -194,6 +197,7 @@ class Tool(ABC):
     @property
     def concurrency_safe(self) -> bool:
         """Whether this tool can run alongside other concurrency-safe tools."""
+        # Runner 只并发连续的安全工具；副作用工具默认形成顺序屏障。
         return self.read_only and not self.exclusive
 
     @property
@@ -250,6 +254,7 @@ class Tool(ABC):
 
     def cast_params(self, params: dict[str, Any]) -> dict[str, Any]:
         """Apply safe schema-driven casts before validation."""
+        # Provider 偶尔把数字或布尔值编码成字符串，兼容转换后仍须经过 validate_params。
         schema = self.parameters or {}
         if schema.get("type", "object") != "object":
             return params
@@ -333,6 +338,7 @@ def tool_parameters(schema: dict[str, Any]) -> Callable[[type[_ToolT]], type[_To
     """
 
     def decorator(cls: type[_ToolT]) -> type[_ToolT]:
+        # 类上保存冻结副本，每次暴露定义再深拷贝，防止调用方污染后续 prompt 的 Schema。
         frozen = deepcopy(schema)
 
         @property

@@ -11,6 +11,7 @@ from typing import Any, Optional, cast
 try:
     import yaml
 except ModuleNotFoundError:
+    # 没有 PyYAML 时只支持下方有限语法，不能把回退解析器视作完整 YAML 实现。
     yaml = None
 
 MAX_SKILL_NAME_LENGTH = 64
@@ -85,6 +86,7 @@ def _parse_simple_frontmatter(frontmatter_text: str) -> Optional[dict[str, str]]
 
 def _load_frontmatter(frontmatter_text: str) -> tuple[dict[str, Any] | None, str | None]:
     if yaml is not None:
+        # safe_load 避免 YAML 构造任意 Python 对象；随后还会限制顶层键和值类型。
         try:
             frontmatter = yaml.safe_load(frontmatter_text)
         except yaml.YAMLError as exc:
@@ -155,6 +157,7 @@ def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
     if error or frontmatter is None:
         return False, error or "Invalid frontmatter"
 
+    # 校验目标是目录形状和元数据约定，不读取或执行 scripts 中的实现来判断其安全性。
     unexpected_keys = sorted(set(frontmatter.keys()) - ALLOWED_FRONTMATTER_KEYS)
     if unexpected_keys:
         allowed = ", ".join(sorted(ALLOWED_FRONTMATTER_KEYS))
@@ -192,6 +195,7 @@ def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
             continue
         if child.is_dir() and child.name in ALLOWED_RESOURCE_DIRS:
             continue
+        # 快速校验容忍根级链接以兼容编辑流程；真正打包时 package_skill 会拒绝所有链接。
         if child.is_symlink():
             continue
         return (

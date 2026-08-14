@@ -71,6 +71,7 @@ def _store_path() -> Path:
 
 
 def _server_fingerprint(server_url: str) -> str:
+    # 凭据同时绑定配置名与 URL 指纹，改名复用或指向另一服务都不会误取旧 token。
     return hashlib.sha256(server_url.strip().encode("utf-8")).hexdigest()
 
 
@@ -146,6 +147,7 @@ def _write_store_unlocked(path: Path, payload: _CredentialStore) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with suppress(OSError):
         os.chmod(path.parent, 0o700)
+    # FileLock 负责跨进程互斥，原子替换避免读到半份 JSON，权限收紧只作平台允许时的补强。
     _write_text_atomic(path, json.dumps(payload, indent=2, ensure_ascii=False))
     with suppress(OSError):
         os.chmod(path, 0o600)
@@ -184,6 +186,7 @@ class MCPOAuthStorage:
         *,
         create: bool,
     ) -> tuple[_StoredServer | None, bool]:
+        # generation 拒绝删除前已启动的旧 flow；write lease 拒绝被新 flow 取代后的迟到写入。
         if not self._generation_is_current(payload):
             return None, False
         entry = self._entry_unlocked(payload)
@@ -342,6 +345,7 @@ async def create_mcp_oauth_auth(
 ) -> OAuthClientProvider:
     """Build the official MCP SDK OAuth provider for one configured server."""
     storage = MCPOAuthStorage(server_name, server_url)
+    # 只有用户发起的浏览器流程才提供交互 handler；后台启动没有凭据时立即停下。
     if handlers is not None:
         await storage.prepare_redirect_uri(
             handlers.redirect_uri,
@@ -396,6 +400,7 @@ def delete_mcp_oauth_credentials(server_name: str) -> bool:
         removed = servers.pop(server_name, None) is not None
         # Rotate even when no entry exists so a flow created before removal cannot
         # claim the name later and resurrect credentials.
+        # 即使当前无条目也轮换 generation，封死旧授权回调稍后“复活”同名凭据的窗口。
         payload["generations"][server_name] = secrets.token_urlsafe(24)
         _write_store_unlocked(path, payload)
         return removed

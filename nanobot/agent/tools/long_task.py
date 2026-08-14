@@ -61,6 +61,7 @@ class _GoalToolsMixin:
         self._runtime_events = runtime_events
 
     def _session(self):
+        # Goal 只操作当前 RequestContext 指向的 session，不接受模型另传任意 session key。
         request_ctx = current_request_context()
         if request_ctx is None:
             return None
@@ -79,6 +80,7 @@ class _GoalToolsMixin:
         *,
         reset_continuation: bool = False,
     ) -> None:
+        # 先保留元数据快照；持久化失败时恢复内存态，避免“内存已更新、磁盘未更新”的分叉。
         previous_metadata = deepcopy(sess.metadata)
         sess.metadata[GOAL_STATE_KEY] = blob
         discard_legacy_goal_state_key(sess.metadata)
@@ -99,6 +101,7 @@ class _GoalToolsMixin:
         cid = (rc.chat_id or "").strip()
         if not cid:
             return
+        # 持久化成功后再发运行时事件，WebUI 收到的是可重新读取的权威状态。
         await runtime_events.publish(
             GoalStateChanged(
                 context=RuntimeEventContext(
@@ -202,6 +205,7 @@ class CreateGoalTool(Tool, _GoalToolsMixin):
             return ToolResult.error(
                 "Error: create_goal requires an active chat session (missing routing context)."
             )
+        # Schema 中存在工具不代表本 turn 获得创建权限；显式用户授权在执行边界再次核验。
         if not self._goal_mutation_allowed():
             return ToolResult.error(_CREATE_UNAVAILABLE_ERROR)
         prior = parse_goal_state(goal_state_raw(sess.metadata))
@@ -319,6 +323,7 @@ class UpdateGoalTool(Tool, _GoalToolsMixin):
             )
 
         if normalized == "replace":
+            # replace 会改变目标本身，因此与 create 一样要求本 turn 的显式授权。
             if not self._goal_mutation_allowed():
                 return ToolResult.error(_REPLACE_UNAVAILABLE_ERROR)
             objective_text = (objective or "").strip()
@@ -360,6 +365,7 @@ class UpdateGoalTool(Tool, _GoalToolsMixin):
         if normalized == "complete":
             blob["completed_at"] = ended
         self._save_goal_state(sess, blob)
+        # 终结目标后撤销授权，防止同一执行链继续复用先前许可重建目标。
         revoke_goal_mutation_permission()
         await self._publish_goal_state_changed(sess.metadata)
 

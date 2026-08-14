@@ -22,6 +22,7 @@ _SKIP_MODULES = frozenset({
     "file_state", "sandbox", "mcp", "__init__", "runtime_control",
 })
 
+# Loader 只扫描可实例化的公开 Tool 子类；基础协议、注册表和私有平台模块不参与自动发现。
 
 class ToolLoader:
     def __init__(self, package: Any = None, *, test_classes: list[type[Tool]] | None = None):
@@ -38,6 +39,7 @@ class ToolLoader:
             return list(self._test_classes)
         if self._discovered is not None:
             return self._discovered
+        # 模块可能重导入同一类，以对象身份去重后按类名排序，确保发现结果稳定。
         seen: set[int] = set()
         results: list[type[Tool]] = []
         for _importer, module_name, _ispkg in pkgutil.iter_modules(self._package.__path__):
@@ -46,6 +48,7 @@ class ToolLoader:
             try:
                 module = importlib.import_module(f".{module_name}", self._package.__name__)
             except Exception:
+                # 单个可选依赖导入失败不会阻断其余内建工具注册。
                 logger.exception("Failed to import tool module: %s", module_name)
                 continue
             for attr_name in dir(module):
@@ -70,6 +73,7 @@ class ToolLoader:
         if self._plugins is not None:
             return self._plugins
         plugins: dict[str, type[Tool]] = {}
+        # 外部扩展只从 nanobot.tools entry point 进入，加载异常与核心工具隔离。
         try:
             eps = entry_points(group="nanobot.tools")
         except Exception:
@@ -92,6 +96,7 @@ class ToolLoader:
     def load(self, ctx: ToolContext, registry: ToolRegistry, *, scope: str = "core") -> list[str]:
         registered: list[str] = []
         builtin_names: set[str] = set()
+        # 内建先注册；外部插件若撞名内建会跳过，而插件间撞名维持后注册覆盖并记录告警。
         sources = [(self.discover(), False), (self._discover_plugins().values(), True)]
         for source, is_plugin_source in sources:
             for tool_cls in source:
@@ -179,6 +184,7 @@ class _LegacyErrorPrefixTool(Tool):
 
     async def execute(self, **kwargs: Any) -> Any:
         result = await self._wrapped.execute(**kwargs)
+        # 兼容旧插件以 "Error:" 表示失败，核心工具则必须显式返回 ToolResult.error。
         if (
             isinstance(result, str)
             and not isinstance(result, ToolResult)

@@ -212,6 +212,7 @@ class ExecTool(Tool):
         self.timeout = timeout
         self.working_dir = working_dir
         self.sandbox = sandbox
+        # 正则拒绝/允许列表是命令文本上的应用级 guard；它不能替代 shell 解析器或系统沙箱。
         self.deny_patterns = (deny_patterns or []) + [
             r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
             r"\bdel\s+/[fq]\b",              # del /f, del /q
@@ -405,6 +406,7 @@ class ExecTool(Tool):
         shell: str | None = None,
         login: bool | None = None,
     ) -> _PreparedCommand | str:
+        # 每次调用都读取 ContextVar 中的请求范围，不能把构造工具时的工作区当作唯一权限来源。
         access = current_tool_workspace(
             self.working_dir,
             restrict_to_workspace=self.restrict_to_workspace,
@@ -427,6 +429,7 @@ class ExecTool(Tool):
                     "Error: working_dir could not be resolved"
                     + _WORKSPACE_BOUNDARY_NOTE
                 )
+            # 解析真实路径后检查 cwd，是对明显越界的应用级拒绝，尚未隔离子进程的系统调用。
             if not is_path_within(requested, resolved_root):
                 return ToolResult.error(
                     "Error: working_dir is outside the configured workspace"
@@ -448,12 +451,14 @@ class ExecTool(Tool):
 
         if self.sandbox:
             if _IS_WINDOWS:
+                # Windows 仅记录警告并继续运行；Job Object 管进程树，不提供文件系统或网络隔离。
                 logger.warning(
                     "Sandbox '{}' is not supported on Windows; running unsandboxed",
                     self.sandbox,
                 )
             else:
                 workspace = workspace_root or cwd
+                # 当前只有 bwrap 包装会建立操作系统级挂载/执行边界；它不隔离网络，bind 会扩展可见路径。
                 command = wrap_command(
                     self.sandbox,
                     command,
@@ -759,6 +764,7 @@ class ExecTool(Tool):
         set of system variables (including PATH) is forwarded.  API keys and
         other secrets are still excluded.
         """
+        # 最小环境降低凭据意外继承面，但子进程仍保有宿主用户本身的操作系统权限。
         if _IS_WINDOWS:
             sr = os.environ.get("SYSTEMROOT", r"C:\Windows")
             env = {
@@ -813,6 +819,7 @@ class ExecTool(Tool):
         # exempt specific commands (e.g. "rm -rf" inside a build directory)
         # from the hardcoded deny list via configuration. A chained command is
         # only explicitly allowed when every top-level shell segment matches.
+        # 分段器覆盖常见链式操作符，仍只是保守文本分析，不能宣称完整理解所有 shell 语法。
         segments = self._split_shell_segments(lower)
         explicitly_allowed = bool(self.allow_patterns) and bool(segments) and all(
             any(re.fullmatch(pattern, segment) for pattern in self.allow_patterns)
@@ -827,6 +834,7 @@ class ExecTool(Tool):
                 return ToolResult.error("Error: Command blocked by allowlist filter (not in allowlist)")
 
         from nanobot.security.network import contains_internal_url
+        # URL 扫描只阻挡命令文本中的明显内网目标，不是对子进程网络访问的系统级封锁。
         if contains_internal_url(
             cmd,
             allow_loopback=current_scope_allows_loopback(
@@ -854,6 +862,7 @@ class ExecTool(Tool):
                 resolved_workspace or cwd_path
             )
 
+            # 路径提取器识别常见绝对路径和嵌套 -c 字符串；无法证明任意 shell 展开后的最终路径。
             for raw in self._extract_absolute_paths(cmd):
                 try:
                     expanded = os.path.expandvars(raw.strip())
@@ -1149,6 +1158,7 @@ class ExecTool(Tool):
         self,
         workspace_root: Path | None = None,
     ) -> list[Path]:
+        # 只有实际启用的 Linux bwrap bind 才能扩展 guard 的允许根；配置名本身不算隔离证据。
         if self.sandbox != "bwrap" or _IS_WINDOWS:
             return []
         roots = [*self.sandbox_ro_binds, *self.sandbox_rw_binds]

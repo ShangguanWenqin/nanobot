@@ -46,6 +46,7 @@ class FileStates:
             mtime = os.path.getmtime(p)
         except OSError:
             return
+        # mtime 先判变更；内容哈希既识别同时间粒度内改写，也避免把纯 touch 当作内容变化。
         self._state[p] = ReadState(
             mtime=mtime,
             offset=offset,
@@ -62,6 +63,7 @@ class FileStates:
         except OSError:
             self._state.pop(p, None)
             return
+        # 工具写入后禁止立即去重，保证下一次 read_file 能把新内容真正返回给模型。
         self._state[p] = ReadState(
             mtime=mtime,
             offset=1,
@@ -147,6 +149,7 @@ class FileStateStore:
         self._states_by_key: OrderedDict[str, FileStates] = OrderedDict()
 
     def for_session(self, session_key: str | None) -> FileStates:
+        # 同一进程共享工具实例，但每个持久会话持有独立的“已读/已写”证据。
         key = session_key or "__default__"
         states = self._states_by_key.pop(key, None)
         if states is None:
@@ -172,6 +175,7 @@ _current_file_states: ContextVar[FileStates | None] = ContextVar(
 
 def current_file_states(default: FileStates) -> FileStates:
     """Return the FileStates bound to the current agent task, or a fallback."""
+    # AgentLoop 在 turn 入口绑定；Dream/测试等隔离调用可显式传入自己的状态对象。
     return _current_file_states.get() or default
 
 

@@ -94,6 +94,7 @@ class SpawnTool(Tool):
         origin_chat_id = request_ctx.chat_id
         session_key = request_ctx.session_key or f"{origin_channel}:{origin_chat_id}"
         method = self._manager.run_inline if wait else self._manager.spawn
+        # 工作区范围按当前 ContextVar 快照传给子代理；后台执行不会继续依赖父任务的可变上下文。
         return await method(
             task=task,
             runtime=request_ctx.runtime,

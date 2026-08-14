@@ -14,6 +14,7 @@ _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
+# 这里直接映射 Win32 ABI；Job Object 只负责进程树所有权与终止，不提供文件或网络隔离。
 
 class _IoCounters(ctypes.Structure):
     _fields_ = [
@@ -119,6 +120,7 @@ def _set_kill_on_close(handle: int, enabled: bool) -> None:
 
 
 def _resume_primary_thread(pid: int) -> None:
+    # 子进程以挂起状态创建，必须先加入 Job，再恢复首个线程，避免它抢先派生未受管的后代。
     snapshot = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPTHREAD, 0)
     if snapshot == _INVALID_HANDLE_VALUE:
         raise _win_error("CreateToolhelp32Snapshot")
@@ -200,6 +202,7 @@ class WindowsJob:
         """Release ownership after successful output collection."""
         if self._handle is None:
             return
+        # 正常收集完输出后取消“句柄关闭即杀树”，否则关闭 Job 会误杀仍被允许存活的后代。
         _set_kill_on_close(self._handle, False)
         self.close()
 

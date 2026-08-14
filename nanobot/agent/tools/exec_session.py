@@ -76,6 +76,7 @@ class _BoundedOutputBuffer:
         if not text:
             return
         self._total_chars += len(text)
+        # 首次溢出后保留前半段与滚动尾部，既保留启动错误也能看到最新进度。
         if not self._truncated:
             combined = self._content + text
             if len(combined) <= self.max_chars:
@@ -129,6 +130,7 @@ class _ExecSession:
         self.process = process
         self.command = command
         self.cwd = cwd
+        # owner_session_key 是应用级会话隔离键，防止其他对话枚举或操纵此进程会话。
         self.owner_session_key = owner_session_key
         self._process_tree = process_tree
         self.started_at = time.monotonic()
@@ -199,6 +201,7 @@ class _ExecSession:
                 with suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(self.process.wait(), timeout=wait_s)
 
+        # 超时由 manager 主动终止整棵进程树；输出读取任务随后限时收尾。
         if self.process.returncode is None and time.monotonic() >= self.deadline:
             self._timed_out = True
             await self.kill()
@@ -288,6 +291,7 @@ class ExecSessionManager:
         max_output_chars: int,
         owner_session_key: str | None = None,
     ) -> tuple[str, _SessionPoll]:
+        # 全局锁只保护会话表与容量检查，实际等待输出在锁外进行，避免阻塞其他 session。
         async with self._lock:
             if self._closed:
                 raise RuntimeError("exec session manager is closed")
@@ -330,6 +334,7 @@ class ExecSessionManager:
         if session is None:
             raise KeyError(session_id)
         if session.owner_session_key and session.owner_session_key != owner_session_key:
+            # 不区分“不存在”和“不属于当前会话”，避免泄露其他 session_id 的有效性。
             raise KeyError(session_id)
 
         if chars:
@@ -380,6 +385,7 @@ class ExecSessionManager:
             self._closed = True
             sessions: list[_ExecSession] = list(self._sessions.values())
             self._sessions.clear()
+        # 关闭失败的对象重新放回表中，使调用方能重试或报告，而不是静默丢失所有权。
         results: list[None | BaseException] = list(await asyncio.gather(
             *(session.kill() for session in sessions),
             return_exceptions=True,
@@ -451,6 +457,7 @@ class ExecSessionManager:
     ) -> asyncio.subprocess.Process:
         from nanobot.agent.tools.shell import ExecTool
 
+        # 进程创建、shell 选择与跨平台进程树所有权复用 ExecTool；这里不另加权限边界。
         return await ExecTool._spawn(  # pyright: ignore[reportPrivateUsage]
             command, cwd, env, shell_program, login,
             stdin=asyncio.subprocess.PIPE,

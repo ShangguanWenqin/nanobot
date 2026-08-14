@@ -100,6 +100,7 @@ class CliAppsTool(Tool):
 
     @property
     def description(self) -> str:
+        # 描述只列出设置中已安装的应用；未知名称还会在 CliAppManager.run 再次拒绝。
         try:
             installed = CliAppManager(workspace=self.workspace, runtime=self.runtime).installed_names()
         except Exception:
@@ -123,6 +124,7 @@ class CliAppsTool(Tool):
         self,
         request: RequestContext,
     ) -> RuntimeContextBlock | None:
+        # 结构化附件与兼容文本回退都取自本 turn 的 RequestContext 快照，且只解析已安装应用。
         lines = runtime_lines_for_request(
             request.original_user_text or "",
             request.metadata,
@@ -141,6 +143,7 @@ class CliAppsTool(Tool):
         working_dir: str | None = None,
         timeout: int | None = None,
     ) -> str:
+        # 当前 WebUI scope 可替换项目根；restricted 模式只约束 cwd，CLI 进程本身并非 OS 沙箱。
         access = current_tool_workspace(
             self.workspace,
             restrict_to_workspace=self.restrict_to_workspace,

@@ -93,6 +93,7 @@ class _OwnedMCPConnection:
         self._close_requested = close_requested
 
     async def aclose(self) -> None:
+        # AnyIO cancel scope 必须由创建它的 asyncio Task 退出，因此关闭通过事件交还 owner 执行。
         self._close_requested.set()
         try:
             await asyncio.shield(self._owner)
@@ -249,6 +250,7 @@ async def _probe_http_url(url: str, timeout: float = 3.0) -> bool:
     port = parsed.port
     if not port:
         port = 443 if parsed.scheme == "https" else 80
+    # 探测先走同一 SSRF 解析；直连使用已验证 IP，环境代理则把最终连接交给代理边界。
     ok, _, resolved_ips = resolve_url_target(url)
     if not ok:
         return False
@@ -298,6 +300,7 @@ def _pinned_transport_kwargs() -> dict[str, Any]:
 
 async def _validate_mcp_request_url(request: httpx.Request) -> None:
     """Validate each outgoing MCP HTTP request, including redirect targets."""
+    # HTTPX 对每次实际请求触发 hook，所以 3xx 后的新目标也会重新进行 SSRF 校验。
     ok, error = validate_url_target(str(request.url))
     if not ok:
         raise httpx.RequestError(
@@ -391,6 +394,7 @@ def _rewrite_local_schema_refs(schema: dict[str, Any]) -> dict[str, Any]:
     rewritten_refs: dict[str, str] = {}
     generated_defs: dict[str, Any] = {}
 
+    # 只解析当前 Schema 内的 JSON Pointer；远程 $ref 不会被下载或内联。
     def rewrite(value: Any) -> Any:
         if isinstance(value, list):
             return [rewrite(item) for item in cast(list[Any], value)]
@@ -605,6 +609,7 @@ class MCPToolWrapper(_MCPWrapperBase):
         tool_timeout: int = 30,
     ):
         self._set_mcp_connection(session, server_name)
+        # 模型看到的是 provider 兼容且限长后的唯一名称，调用 MCP 时仍使用服务端原名。
         self._original_name = tool_def.name
         self._name = _sanitize_mcp_tool_name(f"mcp_{server_name}_{tool_def.name}")
         self._description = tool_def.description or tool_def.name
@@ -627,6 +632,7 @@ class MCPToolWrapper(_MCPWrapperBase):
     async def execute(self, **kwargs: Any) -> str:
         retried_transient = False
         refreshed_session = False
+        # 会话终止时最多重连一次，普通瞬态错误也只退避重试一次，避免无界重放副作用工具。
         while True:
             try:
                 result = await asyncio.wait_for(
@@ -1030,6 +1036,7 @@ async def connect_mcp_servers(
                     logger.warning("MCP server '{}': no command or url configured, skipping", name)
                     return False
 
+            # SSRF 仅适用于 HTTP/SSE；stdio 启动的是本机命令，属于独立的进程权限边界。
             if transport_type in {"sse", "streamableHttp"}:
                 ok, error = validate_url_target(cfg.url)
                 if not ok:
@@ -1065,6 +1072,7 @@ async def connect_mcp_servers(
                     return False
 
             if transport_type == "stdio":
+                # stdio 服务器按配置直接启动，不经过 Shell Tool 的 workspace guard 或 bwrap。
                 command, args, env = _normalize_windows_stdio_command(
                     cfg.command,
                     cfg.args,
@@ -1138,6 +1146,7 @@ async def connect_mcp_servers(
             await session.initialize()
 
             tools = await session.list_tools()
+            # enabledTools 是操作员能力白名单；未含 "*" 时 resources/prompts 也全部关闭。
             enabled_tools = set(cfg.enabled_tools)
             allow_all_tools = "*" in enabled_tools
             registered_count = 0
@@ -1276,6 +1285,7 @@ async def connect_mcp_servers(
                     ready.set_exception(exc)
                 raise
 
+        # 每个连接由长期 owner Task 持有 SDK 上下文，返回的 handle 只负责请求它退出。
         owner = asyncio.create_task(own_connection(), name=f"mcp:{name}")
         connection = _OwnedMCPConnection(owner, close_requested)
         try:
@@ -1411,6 +1421,7 @@ class MCPProvider:
 
     async def connect(self) -> None:
         """Connect configured servers that are not currently live."""
+        # 组合根拥有 Provider；锁把首次连接、热重载、重连与关闭串行化。
         async with self._lock:
             if self._closing:
                 return
@@ -1508,6 +1519,7 @@ class MCPProvider:
                 != _server_signature(next_servers[name])
             )
 
+            # 变更服务器先撤销旧 capability 再关连接，避免 registry 暂留绑定到死 session 的工具。
             tools_removed = 0
             for name in [*removed, *changed]:
                 tools_removed += _unregister_server_tools(self._registry, name)
@@ -1671,6 +1683,7 @@ class MCPProvider:
 
     async def aclose(self) -> None:
         """Close every connection while excluding reconnect and hot reload."""
+        # 先置 closing 阻止新重连，再在同一锁内注销动态工具并关闭所有 owner Task。
         self._closing = True
         async with self._lock:
             connections = dict(self._connections)

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 APP_PROTOCOL_SCHEMA = "agent-app.v1"
+# 协议字典描述能力、安装计划与信任信息，供界面交换；它本身不执行或强制任何安全策略。
 
 
 def compact_dict(values: dict[str, Any]) -> dict[str, Any]:
@@ -38,6 +39,7 @@ def app_manifest(
     docs_url: str | None = None,
 ) -> dict[str, Any]:
     """Build a stable app manifest dictionary."""
+    # 保持稳定的小型传输形状，具体安装器和进程边界仍由各适配器负责。
     return compact_dict({
         "schema": APP_PROTOCOL_SCHEMA,
         "id": app_id,

@@ -18,6 +18,7 @@ def runtime_lines_for_request(
     workspace: Path,
 ) -> list[str]:
     """Return CLI App annotations from an immutable request snapshot."""
+    # 优先使用请求快照中的结构化附件，避免仅凭正文里的 @ 文本猜测用户选择。
     structured = metadata.get("cli_apps") if isinstance(metadata, Mapping) else None
     if isinstance(structured, list):
         from nanobot.apps.cli.service import cli_app_skill_relative_path
@@ -39,6 +40,7 @@ def runtime_lines_for_request(
                 for item in mentions
                 if str(item.get("name") or "").strip()
             ]
+    # 旧客户端没有结构化数据时才退回文本提及解析，并且只匹配本地已安装应用。
     if "@" not in text:
         return []
     try:
@@ -50,6 +52,7 @@ def runtime_lines_for_request(
         )
     except Exception:
         return []
+    # 这些行只是给模型的路由提示；真正的安装校验、argv 执行和 cwd guard 仍在 CliAppManager。
     return [
         "CLI App Mention: "
         f"@{item['name']} "

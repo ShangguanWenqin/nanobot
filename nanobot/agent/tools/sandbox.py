@@ -28,6 +28,7 @@ def _normalize_bind_paths(
         if not path.is_absolute():
             continue
         resolved_path = path.resolve(strict=False)
+        # 拒绝 workspace 及其父目录的额外 bind，避免后挂载覆盖用于遮蔽配置目录的 tmpfs。
         if workspace is not None:
             try:
                 workspace.relative_to(resolved_path)
@@ -81,6 +82,7 @@ def _bwrap(
         "/etc/ld.so.cache",
     ]
 
+    # Bubblewrap 才建立独立挂载视图并在其中启动进程；这里未隔离网络，且不同于 Shell 文本 guard。
     args = ["bwrap", "--new-session", "--die-with-parent", "--setenv", "HOME", str(ws)]
     for p in required:
         args += ["--ro-bind", p, p]
@@ -88,6 +90,7 @@ def _bwrap(
         args += ["--ro-bind-try", p, p]
     args += [
         "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+        # 先遮蔽 workspace 父目录，再只重建并读写挂载 workspace，避免暴露同级配置状态。
         "--tmpfs", str(ws.parent),        # mask config dir
         "--dir", str(ws),                 # recreate workspace mount point
         "--bind", str(ws), str(ws),
@@ -114,6 +117,7 @@ def wrap_command(
     sandbox_rw_binds: Iterable[str] | None = None,
 ) -> str:
     """Wrap *command* using the named sandbox backend."""
+    # 当前只注册 bwrap；平台缺失/Windows 降级由 Shell 层显式处理，不能宣称已有系统沙箱。
     if backend := _BACKENDS.get(sandbox):
         return backend(
             command,

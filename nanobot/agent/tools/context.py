@@ -26,6 +26,7 @@ _CURRENT_REQUEST_CONTEXT: ContextVar["RequestContext | None"] = ContextVar(
     default=None,
 )
 
+# ContextVar 随 asyncio Task 传播，使共享 Tool 实例无需保存会话路由，也不会在并发 turn 间串值。
 
 @dataclass(frozen=True)
 class RequestContext:
@@ -42,6 +43,7 @@ class RequestContext:
     workspace: Path | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
 
+# RequestContext 包含调用者提供的 attributes/metadata；它不等同于可信 RuntimeContext。
 
 @runtime_checkable
 class ContextAware(Protocol):
@@ -50,6 +52,7 @@ class ContextAware(Protocol):
 
 
 def bind_request_context(ctx: RequestContext) -> Token[RequestContext | None]:
+    # 调用方必须保存 Token 并在 finally reset，才能正确恢复嵌套绑定而非简单清空。
     return _CURRENT_REQUEST_CONTEXT.set(ctx)
 
 
@@ -78,6 +81,7 @@ def current_request_session_key() -> str | None:
 
 @dataclass
 class ToolContext:
+    # 这是组合阶段的构造依赖集合，不是每个请求都会变化的路由上下文。
     config: ToolsConfig
     workspace: str
     bus: MessageBus | None = None

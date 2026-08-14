@@ -15,6 +15,7 @@ WORKSPACE_BOUNDARY_NOTE = (
     "do not retry with shell tricks or alternative tools, and ask "
     "the user how to proceed if the resource is genuinely required)"
 )
+# 本模块统一的是应用层路径判定；只有外部 OS 沙箱才能限制绕过这些 API 的进程访问。
 
 
 class WorkspaceBoundaryError(PermissionError):
@@ -44,6 +45,7 @@ def _path_key(path: str | Path) -> str:
 def is_path_within(path: str | Path, root: str | Path) -> bool:
     """Return True when *path* resolves to *root* or a descendant of *root*."""
     try:
+        # 路径和根都跟随符号链接后再做 relative_to，避免词法前缀和链接逃逸被误判为包含。
         resolved_path = Path(path).expanduser().resolve(strict=False)
         resolved_root = Path(root).expanduser().resolve(strict=False)
         resolved_path.relative_to(resolved_root)
@@ -63,6 +65,7 @@ def _is_path_exactly_allowed(
     files: Iterable[str | Path],
 ) -> bool:
     """Return True when *path* resolves exactly to one of the allowed files."""
+    # 单文件例外要求逻辑路径与解析路径相同，故指向该文件的其他符号链接不会继承授权。
     logical_key = _path_key(logical_path)
     if _path_key(resolved_path) != logical_key:
         return False
@@ -112,6 +115,7 @@ def resolve_allowed_path(
     if allowed_root is not None:
         roots.append(allowed_root)
     roots.extend(extra_allowed_roots or [])
+    # 根目录授权按真实路径包含判断，精确文件授权另走不跟随链接的逻辑身份校验。
     exact_allowed = bool(files) and _is_path_exactly_allowed(
         _resolve_logical_path(path, workspace),
         resolved,

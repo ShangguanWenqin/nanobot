@@ -32,6 +32,7 @@ AGENT_PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.jso
 NANOBOT_EXTENSION_REGISTRY_URL = "https://raw.githubusercontent.com/Re-bin/nanobot-extension/main/registry.json"
 NANOBOT_EXTENSION_RAW_BASE = "https://raw.githubusercontent.com/Re-bin/nanobot-extension/main"
 _CATALOG_SOURCES = (
+    # 目录地址与原始内容根由应用代码固定；目录条目不能任意改写下载主机和路径范围。
     ("harness", CLI_ANYTHING_REGISTRY_URL, CLI_ANYTHING_RAW_BASE, True),
     ("public", CLI_ANYTHING_PUBLIC_REGISTRY_URL, CLI_ANYTHING_RAW_BASE, True),
     ("extensions", NANOBOT_EXTENSION_REGISTRY_URL, NANOBOT_EXTENSION_RAW_BASE, False),
@@ -369,6 +370,7 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, indent=2, ensure_ascii=False)
+    # 同目录临时文件替换避免读者看到半份安装状态；这不提供跨进程事务或锁。
     tmp_path = path.with_name(f".{path.name}.{os.getpid()}.{int(_now() * 1_000_000)}.tmp")
     try:
         tmp_path.write_text(payload, encoding="utf-8")
@@ -391,6 +393,7 @@ def _skill_content_url(skill_md: str, *, raw_base: str = CLI_ANYTHING_RAW_BASE) 
     safe_path = _safe_skill_path(skill_md)
     if safe_path:
         return f"{raw_base.rstrip('/')}/{safe_path}"
+    # 远端 skill 只接受固定 raw 主机、固定仓库前缀及无穿越的 skills/.../SKILL.md。
     parsed = urlparse(skill_md)
     if parsed.scheme != "https" or parsed.netloc != "raw.githubusercontent.com":
         return None
@@ -996,6 +999,7 @@ class CliAppManager:
         Mirrors the shell tool's allowlist so installed apps cannot read
         provider credentials from the parent process environment.
         """
+        # 环境白名单减少父进程凭据泄漏，但不撤销应用进程继承的宿主用户文件或网络权限。
         if sys.platform == "win32":
             sr = os.environ.get("SYSTEMROOT", r"C:\Windows")
             env = {
@@ -1022,6 +1026,7 @@ class CliAppManager:
     def _run_argv(self, argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
         command = subprocess.list2cmdline(argv)
         logger.info("CLI Apps: running {}", command)
+        # 参数以 argv 直接执行且不经 shell；用于安装时，包管理器仍是工作区之外的软件执行边界。
         result = subprocess.run(
             argv,
             capture_output=True,
@@ -1203,6 +1208,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
                 }
             note = app.get("install_notes") or f"{app['display_name']} is bundled with its parent app."
             raise CliAppError(str(note))
+        # 策略层只生成受支持的 pip/npm/brew/uv argv；包管理器可写入哪里由其自身和操作系统权限决定。
         argv = self._argv_for_action(app, "install")
         assert argv is not None
         result = self._run_argv(argv, timeout=self.runtime.install_timeout)
@@ -1343,6 +1349,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         cwd = Path(working_dir).expanduser() if working_dir else self.workspace
         cwd = cwd.resolve(strict=False)
         workspace = self.workspace.resolve(strict=False)
+        # 此检查只约束启动 cwd，是应用级 guard；不会把随后启动的 CLI App 困在工作区内。
         if restrict_to_workspace and not is_path_within(cwd, workspace):
             raise CliAppError("working_dir is outside the configured workspace")
         return cwd
@@ -1353,6 +1360,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         out: list[Path] = []
         stack = [cwd]
         scanned = 0
+        # 产物发现有路径数和回报数上限，且不跟随目录符号链接，避免执行后无界扫描。
         while stack and scanned < _MAX_ARTIFACT_SCAN_PATHS:
             directory = stack.pop()
             try:
@@ -1438,6 +1446,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         timeout: int | None = None,
         restrict_to_workspace: bool = False,
     ) -> str:
+        # 只能从已记录安装项解析入口点，模型提供的 args 保持为独立 argv 元素，不经 shell 拼接执行。
         app = self.get_app(name)
         installed = self._load_installed()
         if str(app["name"]) not in installed:
@@ -1453,6 +1462,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         effective_timeout = max(1, min(timeout or self.runtime.run_timeout, 600))
         artifact_snapshot = self._artifact_snapshot(cwd)
         try:
+            # 这里没有 bwrap 等系统沙箱；CLI App 是独立进程，仍拥有启动用户授予的系统能力。
             result = subprocess.run(
                 [resolved, *clean_args],
                 cwd=str(cwd),

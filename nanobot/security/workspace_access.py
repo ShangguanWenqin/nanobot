@@ -25,6 +25,7 @@ _CURRENT_WORKSPACE_SCOPE: ContextVar["WorkspaceScope | None"] = ContextVar(
     "nanobot_workspace_scope",
     default=None,
 )
+# 工作区范围绑定到当前异步执行上下文；AgentLoop 必须在 turn 结束时用 Token 恢复旧值。
 
 
 class WorkspaceScopeError(ValueError):
@@ -142,6 +143,7 @@ class WorkspaceScopeResolver:
         message_metadata: Any,
         session_metadata: Any,
     ) -> WorkspaceScope:
+        # 客户端可选项目范围只对 WebSocket/WebUI 生效，其他渠道固定使用服务端默认策略。
         if channel != self.scoped_channel:
             return self.default()
         return resolve_effective_workspace_scope(
@@ -173,6 +175,7 @@ def workspace_sandbox_status(
     """Return how workspace restriction is enforced in the current host."""
 
     workspace_root = str(Path(workspace).expanduser().resolve(strict=False))
+    # “system”状态来自宿主启动器提供的环境标记；本函数只报告能力，不自行建立沙箱。
     provider = _env_system_provider(environ)
     if not restrict_to_workspace:
         return WorkspaceSandboxStatus(
@@ -200,6 +203,7 @@ def workspace_sandbox_status(
     return WorkspaceSandboxStatus(
         restrict_to_workspace=True,
         workspace_root=workspace_root,
+        # 无宿主强制标记时如实标成应用级且 enforced=False，避免夸大路径 guard 的能力。
         level="application",
         enforced=False,
         provider="none",
@@ -272,6 +276,7 @@ def validate_workspace_scope_payload(
     if "\0" in raw_path:
         raise WorkspaceScopeError("project_path contains invalid characters")
 
+    # 客户端路径必须是现存绝对目录；full 模式是显式能力选择，并不自动缩回默认工作区。
     project = Path(raw_path).expanduser()
     if not project.is_absolute():
         raise WorkspaceScopeError("project_path must be absolute")
@@ -342,6 +347,7 @@ def resolve_effective_workspace_scope(
 
 
 def bind_workspace_scope(scope: WorkspaceScope) -> Token[WorkspaceScope | None]:
+    # 返回 Token 让调用者在 finally 中精确恢复嵌套前的 ContextVar 值。
     return _CURRENT_WORKSPACE_SCOPE.set(scope)
 
 
@@ -361,6 +367,7 @@ def current_tool_workspace(
 ) -> ToolWorkspace:
     """Return the workspace/access policy for the current tool call."""
 
+    # turn 级 scope 优先于工具构造默认值；调用方声明的 sandbox_restricts_workspace 只会进一步收紧。
     scope = current_workspace_scope()
     project_path = (
         scope.project_path
@@ -382,6 +389,7 @@ def current_tool_workspace(
 def current_scope_allows_loopback(*, enabled: bool) -> bool:
     """Return True when the current WebUI Full Access turn may touch loopback URLs."""
 
+    # 本地预览例外同时要求服务端开关、WebSocket 来源和该 turn 的显式 full access。
     scope = current_workspace_scope()
     return bool(
         enabled

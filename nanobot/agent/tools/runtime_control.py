@@ -44,6 +44,7 @@ RUNTIME_COMMAND_KEYS = frozenset({
     "workspace",
 })
 
+# Snapshot 与 Command 两张白名单把“可观察”与“可修改”分开，MyTool 不持有 AgentLoop 本体。
 
 @dataclass(frozen=True, slots=True)
 class RuntimeSnapshot:
@@ -157,6 +158,7 @@ class AgentRuntimeControl:
         self.__workspace_display: str | None = None
 
     def snapshot(self) -> RuntimeSnapshot:
+        # 所有集合都复制为普通值，调用方修改快照不会反向修改 Loop 内部状态。
         target = self.__target
         return RuntimeSnapshot(
             model=target.model,
@@ -206,6 +208,7 @@ class AgentRuntimeControl:
 
     def set_workspace_display(self, value: str) -> None:
         """Preserve MyTool display compatibility without changing path enforcement."""
+        # 这里只改自检展示；真正的 project_path 与 containment 仍由 WorkspaceScope 决定。
         self.__workspace_display = value
 
     def set_scratchpad(self, key: str, value: JsonValue, *, max_keys: int) -> None:
@@ -234,6 +237,7 @@ def _snapshot_web_config(config: WebToolsConfig) -> dict[str, object]:
     return {
         "enable": config.enable,
         # Proxy URLs may embed credentials. Presence is enough for diagnosis.
+        # 代理 URL 可能内嵌凭据，快照只暴露是否配置。
         "proxy": "<configured>" if config.proxy else config.proxy,
         "user_agent": config.user_agent,
         "search": {
@@ -266,6 +270,7 @@ def _snapshot_exec_config(config: ExecToolConfig) -> dict[str, object]:
 def _snapshot_subagent_statuses(
     manager: SubagentManager,
 ) -> dict[str, dict[str, object]]:
+    # 子代理状态同样转成脱离原对象的字典，避免自检接口成为可变引用逃逸点。
     return {
         task_id: _snapshot_subagent_status(status)
         for task_id, status in manager.runtime_statuses().items()

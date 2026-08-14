@@ -31,6 +31,7 @@ class _PatchError(ValueError):
 
 
 def _validate_patch_path(path: str) -> str:
+    # 路径的权限判定仍由 _FsTool._resolve_write 统一完成；这里仅拒绝空值和 NUL。
     normalized = path.strip()
     if not normalized:
         raise _PatchError("patch path cannot be empty")
@@ -142,6 +143,7 @@ class ApplyPatchTool(_FsTool):
             if not edits:
                 raise _PatchError("must provide edits")
 
+            # 同一文件的连续编辑先叠加在内存快照上，最后每个目标只写入一次。
             writes: dict[Path, str] = {}
             summaries: list[_PatchSummary] = []
 
@@ -267,6 +269,7 @@ class ApplyPatchTool(_FsTool):
             for path in writes:
                 backups[path] = path.read_bytes() if path.exists() else None
 
+            # 多文件写入不是文件系统事务；异常时用原始字节尽力回滚已经落盘的目标。
             try:
                 for path, content in writes.items():
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -282,6 +285,7 @@ class ApplyPatchTool(_FsTool):
                 raise
 
             for path in writes:
+                # 只有整批写入成功才刷新读前编辑状态，避免把回滚结果误记为新版本。
                 self._file_states.record_write(path)
             return "Patch applied:\n" + "\n".join(
                 _format_summary(summary) for summary in summaries

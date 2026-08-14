@@ -53,6 +53,7 @@ def _session_ref(session_key: str) -> str:
 
 class _SessionTool(Tool):
     def __init__(self, sessions: SessionManager) -> None:
+        # WebuiSessionAccess 只投影可见的持久化消息；工具不会直接操作 SessionManager 内部状态。
         self._access = WebuiSessionAccess(sessions)
 
     @classmethod
@@ -109,9 +110,11 @@ class SearchSessionsTool(_SessionTool):
             self._access.search,
             query,
             _SEARCH_LIMIT,
+            # 当前会话由 ContextVar 排除，避免把正在生成的上下文再次作为“历史会话”返回。
             exclude_session_key=current_request_session_key(),
         )
         needle = query.casefold()
+        # 有界摘录仍属于不可信历史数据；notice 明确要求调用方不能把它当作新指令。
         result = {
             "notice": _UNTRUSTED_NOTICE,
             "query": query,
@@ -212,6 +215,7 @@ class ReadSessionTool(_SessionTool):
                 f"Error: session not found: {session_handle or session_key}"
             )
         needle = query_text.casefold()
+        # 读取上限与单条字符上限共同限制返回体，且整个流程保持只读。
         result: dict[str, Any] = {
             "notice": _UNTRUSTED_NOTICE,
             "updated_at": match["updated_at"],

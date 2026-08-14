@@ -29,6 +29,7 @@ class ToolRegistry:
 
     def register(self, tool: Tool) -> None:
         """Register a tool."""
+        # 动态注册或热重载都会使函数定义缓存失效。
         self._tools[tool.name] = tool
         self._cached_definitions = None
 
@@ -44,6 +45,7 @@ class ToolRegistry:
     def get_runtime_context_providers(self) -> list[RuntimeContextProvider]:
         """Return tool-owned providers in stable tool-name order."""
         providers: list[RuntimeContextProvider] = []
+        # 工具自带的 prompt block 按名称稳定排序，避免注册时序扰动 prompt/cache key。
         for name in sorted(self._tools):
             provider = self._tools[name].runtime_context_provider()
             if provider is not None:
@@ -103,6 +105,7 @@ class ToolRegistry:
 
             builtins.sort(key=self._schema_name)
             mcp_tools.sort(key=self._schema_name)
+            # 内建定义保持稳定前缀，MCP 动态能力统一追加，减少热重载造成的缓存失效面。
             self._cached_definitions = builtins + mcp_tools
 
         return self._cached_definitions
@@ -113,6 +116,7 @@ class ToolRegistry:
         params: Any,
     ) -> tuple[Tool | None, Any, str | None]:
         """Resolve, cast, and validate one tool call."""
+        # 执行名称必须精确匹配；归一化只生成纠错提示，绝不静默改派到另一能力。
         tool = self.get(name)
         if not tool:
             suggestion = self._suggest_name(str(name))
@@ -128,6 +132,7 @@ class ToolRegistry:
         if isinstance(tool, ContextAware) and (ctx := current_request_context()) is not None:
             tool.set_context(ctx)
 
+        # 兼容 arguments 包装/JSON 字符串后，依次做 Schema 驱动转换和严格校验。
         params = self._coerce_params(tool, params)
         if not isinstance(params, dict):
             return tool, params, (
@@ -187,6 +192,7 @@ class ToolRegistry:
     async def execute(self, name: str, params: Any) -> Any:
         """Execute a tool by name with given parameters."""
         hint = "\n\n[Analyze the error above and try a different approach.]"
+        # Runner 通常先 prepare 再直接执行工具；此入口为旧调用者保留完整的同等边界。
         tool, params, error = self.prepare_call(name, params)
         if error:
             return ToolResult.error(str(error) + hint)

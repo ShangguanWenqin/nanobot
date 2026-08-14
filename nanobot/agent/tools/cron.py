@@ -51,6 +51,7 @@ _CRON_PARAMETERS = tool_parameters_schema(
     ),
 )
 
+# 根 Schema 故意不用 oneOf：动作间必填关系由 validate_params 保留，以兼容限制较严的 Provider。
 
 @tool_parameters(_CRON_PARAMETERS)
 class CronTool(Tool):
@@ -75,6 +76,7 @@ class CronTool(Tool):
     @staticmethod
     def _request_route() -> tuple[str, str, str, dict[str, Any]]:
         """Return routing from the authoritative request snapshot."""
+        # 调度目标取当前 RequestContext；统一会话键需还原为实际 channel/chat 路由。
         ctx = current_request_context()
         if ctx is None:
             return "", "", "", {}
@@ -86,6 +88,7 @@ class CronTool(Tool):
 
     def set_cron_context(self, active: bool) -> Token[bool]:
         """Mark whether the tool is executing inside a cron job callback."""
+        # ContextVar 让嵌套/并发 cron 回调各自阻止递归创建任务，Token 用于恢复外层状态。
         return self._in_cron_context.set(active)
 
     def reset_cron_context(self, token: Token[bool]) -> None:
@@ -276,6 +279,7 @@ class CronTool(Tool):
     def _remove_job(self, job_id: str | None) -> str:
         if not job_id:
             return ToolResult.error("Error: job_id is required for remove")
+        # CronService 返回 protected 时仍允许查看系统任务，但工具不能删除 Dream 等内部任务。
         result = self._cron.remove_job(job_id)
         if result == "removed":
             return f"Removed job {job_id}"

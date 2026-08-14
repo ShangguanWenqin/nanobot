@@ -133,6 +133,7 @@ class MessageTool(Tool):
     def _resolve_media(self, media: list[str]) -> list[str]:
         """Resolve local media attachments and enforce workspace restriction when enabled."""
         resolved: list[str] = []
+        # 本地附件在 restricted 模式走统一路径 guard；远程 URL 这里只透传给 channel 适配器。
         access = current_tool_workspace(
             self._workspace,
             restrict_to_workspace=self._restrict_to_workspace,
@@ -191,6 +192,7 @@ class MessageTool(Tool):
         )
         channel = channel or default_channel
         explicit_chat_id = chat_id
+        # WebSocket client_id 不是会话 chat_id，禁止模型把消息跨投到同连接的其他会话。
         if (
             default_channel == "websocket"
             and channel == "websocket"
@@ -211,6 +213,7 @@ class MessageTool(Tool):
         # conversation via their Reply API, which would route the message
         # to the wrong chat entirely.
         same_target = channel == default_channel and chat_id == default_chat_id
+        # reply/message_id 只对原会话有意义，跨目标继承会让部分平台路由回旧聊天。
         if same_target:
             message_id = message_id or default_message_id
         else:
@@ -228,6 +231,7 @@ class MessageTool(Tool):
             except (OSError, PermissionError, ValueError) as e:
                 return ToolResult.error(f"Error: media path is not allowed: {str(e)}")
 
+        # 调用者 metadata 仅随同目标发送，跨频道消息从空元数据开始，避免泄露内部路由字段。
         metadata = dict(default_metadata) if same_target else {}
         if message_id:
             metadata["message_id"] = message_id

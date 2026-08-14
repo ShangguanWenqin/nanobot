@@ -15,6 +15,7 @@ def resolve_workspace_path(
     include_media_dir: bool = True,
 ) -> Path:
     """Resolve path against workspace and enforce allowed directory containment."""
+    # 媒体目录只在启用 allowed_dir 的 restricted 路径中作为额外根；full 模式无需扩根。
     media_roots = [get_media_dir()] if include_media_dir else []
     extra_roots = [*media_roots, *(extra_allowed_dirs or [])] if allowed_dir else None
     return resolve_allowed_path(

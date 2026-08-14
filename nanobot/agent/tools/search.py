@@ -167,6 +167,7 @@ def _matches_query(rel_path: str, query: str | None) -> bool:
 
 
 class _SearchTool(_FsTool):
+    # 继承文件工具的路径解析，所以搜索根目录同样受当前请求的工作区读取策略约束。
     _IGNORE_DIRS = set(ListDirTool._IGNORE_DIRS)
 
     def _display_path(self, target: Path, root: Path) -> str:
@@ -181,6 +182,7 @@ class _SearchTool(_FsTool):
             yield root
             return
 
+        # 原地裁剪依赖与构建目录，既稳定遍历顺序，也避免无界扫描常见的大型目录。
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = sorted(d for d in dirnames if d not in self._IGNORE_DIRS)
             current = Path(dirpath)
@@ -725,6 +727,7 @@ class GrepTool(_SearchTool):
             file_mtimes: dict[str, float] = {}
             root = target if target.is_dir() else target.parent
             max_file_bytes = (
+                # 显式文件允许更大的读取上限；目录遍历仍采用较小上限以控制总成本。
                 self._MAX_EXPLICIT_FILE_BYTES if target.is_file() else self._MAX_FILE_BYTES
             )
 
@@ -739,6 +742,7 @@ class GrepTool(_SearchTool):
                 try:
                     file_size = file_path.stat().st_size
                 except OSError:
+                    # NUL 字节、控制字符比例及 UTF-8 解码共同构成启发式过滤，不是文件类型证明。
                     skipped_binary += 1
                     continue
                 if file_size > max_file_bytes:

@@ -16,6 +16,7 @@ from typing import Any
 
 from nanobot.agent.tools.base import Schema
 
+# 这些片段类只负责生成参数 JSON Schema；统一的递归校验仍由基类 Schema 完成。
 
 class StringSchema(Schema):
     """String parameter: ``description`` documents the field; optional length bounds and enum."""
@@ -38,6 +39,7 @@ class StringSchema(Schema):
     def to_json_schema(self) -> dict[str, Any]:
         t: Any = "string"
         if self._nullable:
+            # 用联合类型数组表达可空值，保持工具定义与兼容提供商使用的 JSON Schema 形式一致。
             t = ["string", "null"]
         d: dict[str, Any] = {"type": t}
         if self._description:
@@ -203,6 +205,7 @@ class ObjectSchema(Schema):
         t: Any = "object"
         if self._nullable:
             t = ["object", "null"]
+        # 子字段既可继续使用 Schema 对象，也可直接给出字典片段，因此在这里统一递归展开。
         props = {k: Schema.fragment(v) for k, v in self._properties.items()}
         out: dict[str, Any] = {"type": t, "properties": props}
         if self._required:
@@ -227,6 +230,7 @@ def tool_parameters_schema(
     arguments are reported before execution instead of being silently ignored.
     Pass ``additional_properties=None`` to omit the JSON Schema keyword.
     """
+    # 内置工具默认拒绝未声明参数，让拼错的调用参数在 prepare/validate 阶段显式失败。
     return ObjectSchema(
         required=required,
         description=description,

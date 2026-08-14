@@ -133,8 +133,10 @@ def _fetch_client_kwargs(proxy: str | None, timeout: float) -> dict[str, Any]:
 
     kwargs: dict[str, Any] = {"timeout": timeout}
     if proxy:
+        # 显式代理承担实际出站连接与远端解析，信任边界因此转移到用户配置的代理。
         kwargs["proxy"] = proxy
     else:
+        # 直连默认传输会固定已校验的解析地址；环境代理则通过独立 mount 明确接管对应协议。
         kwargs["transport"] = _pinned_dns_transport()
         mounts = httpx_env_proxy_mounts()
         if mounts:
@@ -207,6 +209,7 @@ async def _get_with_safe_redirects(
     headers: dict[str, str] | None = None,
 ) -> tuple[httpx.Response | None, str | None]:
     """GET a URL while validating every redirect target before requesting it."""
+    # 每一跳都重新做方案、DNS 与地址段校验，不能只相信最初 URL 的检查结果。
     current_url = url
     for _ in range(MAX_REDIRECTS + 1):
         is_valid, error_msg, _ = _resolve_url_safe(current_url)
@@ -303,6 +306,7 @@ def _format_results(query: str, items: list[dict[str, Any]], n: int) -> str:
     """Format provider results into shared plaintext output."""
     if not items:
         return f"No results for: {query}"
+    # 搜索摘要来自外部提供商；这里仅统一格式，不能把摘要视为可信指令或已核实正文。
     lines = [f"Results for: {query}\n"]
     for i, item in enumerate(items[:n], 1):
         title = _normalize(_strip_tags(item.get("title", "")))
@@ -683,6 +687,7 @@ class WebSearchTool(Tool):
         if not base_url:
             logger.warning("SEARXNG_BASE_URL not set, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
+        # SearXNG 地址属于运维者配置的服务边界；这里检查 URL 语法，不套用任意 web_fetch 的 SSRF 策略。
         endpoint = f"{base_url.rstrip('/')}/search"
         is_valid, error_msg = _validate_url(endpoint)
         if not is_valid:
@@ -1106,6 +1111,7 @@ class WebFetchTool(Tool):
         url = url.strip(" \t\r\n`\"'")
         extract_mode = kwargs.pop("extractMode", extract_mode)
         max_chars = cast(int, kwargs.pop("maxChars", max_chars) or self.max_chars)
+        # 任意用户 URL 先经 SSRF 校验；后续重定向仍必须逐跳复验。
         is_valid, error_msg = _validate_url_safe(url)
         if not is_valid:
             return json.dumps({"error": f"URL validation failed: {error_msg}", "url": url}, ensure_ascii=False)
@@ -1113,6 +1119,7 @@ class WebFetchTool(Tool):
         # Detect and fetch images directly to avoid Jina's textual image captioning.
         # This local preflight also proves that no credential-bearing URL occurs
         # in the redirect chain before the original URL may be sent to Jina.
+        # 转交第三方 Jina 前先本地走完整重定向链，确认链上没有显式凭据材料。
         jina_remote_safe = False
         try:
             async with httpx.AsyncClient(
@@ -1152,6 +1159,7 @@ class WebFetchTool(Tool):
 
         result = None
         if self.config.use_jina_reader and jina_remote_safe:
+            # Jina 路径会向第三方披露目标 URL；不满足条件时只使用本地可读性提取。
             result = await self._fetch_jina(url, max_chars)
         if result is None:
             result = await self._fetch_readability(url, extract_mode, max_chars)
@@ -1192,6 +1200,7 @@ class WebFetchTool(Tool):
             truncated = len(text) > max_chars
             if truncated:
                 text = text[:max_chars]
+            # Jina 返回正文显式标记为不可信数据，并先按字符预算截断。
             text = f"{_UNTRUSTED_BANNER}\n\n{text}"
 
             return json.dumps({
@@ -1247,6 +1256,7 @@ class WebFetchTool(Tool):
             truncated = len(text) > max_chars
             if truncated:
                 text = text[:max_chars]
+            # 本地解析结果同样标记为不可信外部数据，并受相同字符预算约束。
             text = f"{_UNTRUSTED_BANNER}\n\n{text}"
 
             return json.dumps({

@@ -85,6 +85,7 @@ class _FsTool(Tool):
 
         agent_workspace = Path(ctx.workspace)
         resolved_agent_workspace = agent_workspace.expanduser().resolve(strict=False)
+        # 仅配置 exec sandbox 时文件工具也启用应用级工作区约束；实际 bwrap 进程隔离是另一层边界。
         restrict = (
             ctx.config.restrict_to_workspace
             or ctx.config.exec.sandbox
@@ -130,6 +131,7 @@ class _FsTool(Tool):
         include_media_dir: bool,
         extra_files_require_allowed_root: bool = False,
     ) -> Path:
+        # 所有读写先解析当前 turn 的 WorkspaceScope，再交给统一 containment helper 跟随并检查真实路径。
         access = current_tool_workspace(
             self._workspace,
             restrict_to_workspace=self._restrict_to_workspace,
@@ -170,6 +172,7 @@ class _FsTool(Tool):
                     )
             except (OSError, RuntimeError):
                 pass
+        # 额外 skill 与上传媒体只扩展读能力；写工具不会继承这些根目录。
         return self._resolve_with_extra(
             path,
             [*self._extra_read_allowed_dirs, *plugin_skill_dirs],
@@ -179,6 +182,7 @@ class _FsTool(Tool):
         )
 
     def _resolve_write(self, path: str) -> Path:
+        # 写能力必须由 extra_write_* 显式授予，旧 extra_allowed_dirs 始终只读。
         return self._resolve_with_extra(
             path,
             self._extra_write_allowed_dirs,
@@ -328,6 +332,7 @@ class ReadFileTool(_FsTool):
 
             # PDF support
             if fp.suffix.lower() == ".pdf":
+                # 文档解析仍受文件大小、页数和字符预算约束，避免一次工具结果撑满上下文。
                 return self._read_pdf(fp, pages)
 
             # Office document support
@@ -362,6 +367,7 @@ class ReadFileTool(_FsTool):
                     self._file_states.record_read(fp, offset=offset, limit=limit)  # Update state with new mtime
                     # Continue to read full content (don't return dedup message)
                 else:
+                    # 相同读取范围只有在 mtime 与哈希都一致时才返回去重占位符。
                     # File unchanged - return dedup message
                     # But only if content is actually unchanged (not just mtime)
                     current_hash = _hash_file(str(fp))
@@ -970,6 +976,7 @@ class EditFileTool(_FsTool):
             # Read-before-edit check
             warning = self._file_states.check_read(fp)
 
+            # 读前编辑只产生告警而非权限授权；真正的写边界已在 _resolve_write 强制执行。
             raw = fp.read_bytes()
             uses_crlf = b"\r\n" in raw
             content = raw.decode("utf-8").replace("\r\n", "\n")

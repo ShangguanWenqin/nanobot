@@ -136,6 +136,7 @@ class ImageGenerationTool(Tool):
         cls = get_image_gen_provider(self.config.provider)
         if cls is None:
             return None
+        # Provider 凭据只传给专用客户端，不进入 Tool Schema 或返回给模型。
         kwargs: dict[str, Any] = {
             "api_key": provider.api_key if provider and isinstance(provider.api_key, str) else None,
             "api_base": provider.api_base if provider and isinstance(provider.api_base, str) else None,
@@ -148,6 +149,7 @@ class ImageGenerationTool(Tool):
         return cls(**kwargs)
 
     def _resolve_reference_image(self, value: str) -> str:
+        # 参考图沿用当前 turn 范围；无 scope 时默认受限，受限模式额外开放 nanobot 媒体目录。
         access = current_tool_workspace(self.workspace, restrict_to_workspace=True)
         workspace = access.project_path or self.workspace
         try:
@@ -199,6 +201,7 @@ class ImageGenerationTool(Tool):
         try:
             refs = self._resolve_reference_images(reference_images)
             artifacts: list[dict[str, Any]] = []
+            # 某些 Provider 一次返回多张，循环以请求数为上限收集并持久化统一 artifact。
             while len(artifacts) < requested:
                 response = await client.generate(
                     prompt=prompt,
@@ -241,6 +244,7 @@ async def reload_image_generation_tool(state: Any, registry: ToolRegistry) -> di
             "error": str(exc),
         }
 
+    # 先完整构造新工具，再原位替换 registry；失败不会移除当前可用实例。
     next_tool = (
         ImageGenerationTool(  # pyright: ignore[reportAbstractUsage]
             workspace=state.workspace,
@@ -281,6 +285,7 @@ async def request_image_generation_reload(
 ) -> dict[str, Any]:
     """Ask the running agent loop to refresh its image generation tool."""
     loop = asyncio.get_running_loop()
+    # 设置面通过 MessageBus 投递进 AgentLoop，并用进程内 Future 接收同一运行时的确认。
     ack: asyncio.Future[dict[str, Any]] = loop.create_future()
     await bus.publish_inbound(
         InboundMessage(

@@ -78,6 +78,7 @@ class MyTool(Tool):
         )
 
     BLOCKED = frozenset({
+        # 这些名称只是一层应用级可见性边界，真正暴露给工具的是 RuntimeSnapshot 映射而非 AgentLoop 对象。
         # Core infrastructure
         "bus", "provider", "runtime_resolver", "_running", "tools",
         # Config management
@@ -228,6 +229,7 @@ class MyTool(Tool):
                 return None, f"'{part}' is not accessible"
             if part.lower() in self._SENSITIVE_NAMES:
                 return None, f"'{part}' is not accessible"
+        # 仅在快照字典中逐级取值，不使用 getattr，防止点路径触达任意对象属性或描述符。
         obj: object = snapshot.as_mapping()
         for part in parts:
             if not _is_string_mapping(obj):
@@ -486,6 +488,7 @@ class MyTool(Tool):
         if key in self.RESTRICTED:
             return self._modify_restricted(key, value)
         if key in RUNTIME_COMMAND_KEYS:
+            # set 只进入 RuntimeControl 明确列出的命令；其余未知键被保存到会话内存草稿区。
             return self._modify_runtime_setting(key, value)
         if key in RUNTIME_SNAPSHOT_KEYS:
             self._audit("modify", f"READ_ONLY {key}")
@@ -558,6 +561,7 @@ class MyTool(Tool):
                 return ToolResult.error(
                     f"Error: 'workspace' expects str, got {type(value).__name__}"
                 )
+            # workspace 字段只改变状态展示，不改变 ContextVar 工作区范围或文件、Shell 权限。
             self._runtime_control.set_workspace_display(value)
             self._audit("modify", f"workspace: {old!r} -> {value!r}")
             return f"Set workspace = {value!r} (was {old!r})"
@@ -586,6 +590,7 @@ class MyTool(Tool):
         if callable(value):
             self._audit("modify", f"REJECTED callable {key}")
             return ToolResult.error("Error: cannot store callable values")
+        # 草稿值必须可安全复制和序列化，且受深度与键数限制，不能借此保存可调用对象。
         err = self._validate_json_safe(value)
         if err:
             self._audit("modify", f"REJECTED {key}: {err}")
