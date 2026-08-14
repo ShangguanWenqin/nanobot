@@ -75,6 +75,7 @@ class _AzureTokenProvider:
 
     async def __call__(self) -> str:
         """Return a bearer token for the configured scope."""
+        # SDK 在每次请求时调用该对象，AAD token 不与 provider 构造时的配置快照混为静态 key。
         access_token = await self._credential.get_token(self._scope)
         return access_token.token
 
@@ -188,6 +189,7 @@ class AzureOpenAIProvider(LLMProvider):
         provider_context: ProviderCallContext | None = None,
     ) -> dict[str, Any]:
         """Build the Responses API request body from Chat-Completions-style args."""
+        # Azure 走 Responses body，但继承的转换器仍负责将公开 Chat history 投影为 input items。
         deployment = model or self.default_model
         sanitized_messages = self._sanitize_empty_content(messages)
         sanitized_state = (
@@ -249,6 +251,7 @@ class AzureOpenAIProvider(LLMProvider):
         body: dict[str, Any],
     ) -> Any:
         """Retry once without server compaction when Azure rejects the option."""
+        # 原生压缩字段被区域/部署拒绝时，移除该能力重试同一请求，随后不再反复探测。
         try:
             return cast(Any, await self._client.responses.create(**body))
         except Exception as exc:

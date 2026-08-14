@@ -211,6 +211,7 @@ class XAIOAuthLoginFlow:
             self._raise_if_finished()
             self._close_locked()
             try:
+                # 关闭单次 loopback listener 后才交换 code，并在进程锁内持久化轮换后的凭据。
                 token = _exchange_callback(
                     callback,
                     expected_state=self._state,
@@ -313,6 +314,7 @@ def start_xai_oauth_login(
     timeout_s: float = 600,
 ) -> XAIOAuthLoginFlow:
     """Create a non-blocking OAuth flow for browser or pasted-callback completion."""
+    # discovery endpoint 经固定 issuer 校验；PKCE/state 绑定此一次性回调而非全局登录状态。
     discovery = _discover(proxy)
     verifier, challenge = _generate_pkce()
     state = secrets.token_urlsafe(32)
@@ -370,6 +372,7 @@ def get_xai_oauth_token(
             "Run `nanobot provider login xai-grok` again."
         )
 
+    # 多个 turn 可能同时发现过期 token，锁内再次读取以避免并发 refresh 覆盖新 refresh token。
     with _token_lock():
         latest = _load_token()
         if latest is None:
@@ -491,6 +494,7 @@ def _make_callback_server(
             code = _first(params, "code")
             received_state = _first(params, "state")
             error = _first(params, "error_description") or _first(params, "error")
+            # loopback 回调也必须验证 state；仅有 code 不能证明它属于当前登录流程。
             if code and received_state and hmac.compare_digest(received_state, expected_state):
                 result = _CallbackResult(code=code, state=received_state)
                 title = "Signed in to xAI"
@@ -738,6 +742,7 @@ def _write_token(token: XAIToken) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with suppress(OSError):
         os.chmod(path.parent, 0o700)
+    # 原子替换并收紧文件权限，读取方只会看到完整 token JSON，凭据不应继承默认宽权限。
     _write_text_atomic(path, json.dumps(asdict(token), indent=2, ensure_ascii=False))
     with suppress(OSError):
         os.chmod(path, 0o600)

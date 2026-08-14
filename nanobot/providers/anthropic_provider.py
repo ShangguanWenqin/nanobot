@@ -189,6 +189,7 @@ class AnthropicProvider(LLMProvider):
         self, messages: list[dict[str, Any]],
     ) -> tuple[str | list[dict[str, Any]], list[dict[str, Any]]]:
         """Return ``(system, anthropic_messages)``."""
+        # 该转换器是 Chat 公开 history 到 Anthropic 原生块协议的唯一边界，并在此保持 tool id 配对。
         system: str | list[dict[str, Any]] = ""
         raw: list[dict[str, Any]] = []
         seen_tool_ids: set[str] = set()
@@ -590,6 +591,7 @@ class AnthropicProvider(LLMProvider):
         anthropic_tools = self._convert_tools(tools)
 
         if supports_caching:
+            # 缓存标记只标稳定的 system/近端上下文和工具边界，不能改变消息本身的语义。
             system, anthropic_msgs, anthropic_tools = self._apply_cache_control(
                 system, anthropic_msgs, anthropic_tools,
             )
@@ -626,6 +628,7 @@ class AnthropicProvider(LLMProvider):
             if not omit_temperature:
                 kwargs["temperature"] = 1.0
         elif thinking_enabled and adaptive_only:
+            # 新模型的 effort 与旧版 token budget 不是同一参数，按版本选择互斥的 wire shape。
             # Newer Claude models removed manual token budgets. Their effort
             # control is independent from the adaptive thinking mode.
             kwargs["thinking"] = {"type": "adaptive"}
@@ -783,6 +786,7 @@ class AnthropicProvider(LLMProvider):
             messages, tools, model, max_tokens, temperature,
             reasoning_effort, tool_choice,
         )
+        # 以任意原生 SSE 事件续期，而非只看正文，避免长推理或工具 JSON 误判为空闲。
         idle_timeout_s = resolve_stream_idle_timeout_s()
         try:
             async with self._client.messages.stream(**kwargs) as stream:

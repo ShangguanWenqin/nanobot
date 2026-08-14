@@ -31,6 +31,7 @@ class ResponsesStreamCapture:
     _items_by_index: dict[int, dict[str, Any]] = field(default_factory=dict, repr=False)
 
     def record_output_item(self, index: object, item: object) -> None:
+        # 增量 UI 消费与完整 item 捕获分离，后者用于构造下一 turn 的私有 continuation。
         item_object = _response_object(item)
         if item_object is None:
             return
@@ -306,6 +307,7 @@ def _extract_refusal_text_from_output(output: object) -> tuple[bool, str]:
 
 async def iter_sse(response: httpx.Response) -> AsyncGenerator[dict[str, Any], None]:
     """Yield parsed JSON events from a Responses API SSE stream."""
+    # SSE 事件可以跨多行 data 到达；按空行封帧，不能假定一行就是完整 JSON。
     buffer: list[str] = []
 
     def _flush() -> dict[str, Any] | None:
@@ -361,6 +363,7 @@ async def consume_sse_with_reasoning(
     capture: ResponsesStreamCapture | None = None,
 ) -> tuple[str, list[ToolCallRequest], str, LLMUsage | None, str | None]:
     """Consume a Responses API SSE stream, including visible reasoning summaries."""
+    # 函数参数与 reasoning 均可碎片化；先缓冲，只有完成事件才形成可执行 ToolCallRequest。
     content = ""
     tool_calls: list[ToolCallRequest] = []
     tool_call_buffers: dict[str, dict[str, Any]] = {}
@@ -594,6 +597,7 @@ def parse_response_output(
     """Parse an SDK ``Response`` object into an ``LLMResponse``."""
     response_object = _response_object(response) or {}
 
+    # 非流式响应同样经过统一 parser，确保 tool id、finish reason 与 stream 路径一致。
     output = _response_object_list(response_object.get("output"))
     content_parts: list[str] = []
     tool_calls: list[ToolCallRequest] = []

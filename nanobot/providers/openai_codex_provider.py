@@ -84,6 +84,7 @@ class OpenAICodexProvider(LLMProvider):
         provider_context: ProviderCallContext | None = None,
     ) -> LLMResponse:
         """Shared request logic for both chat() and chat_stream()."""
+        # Codex 始终用 SSE 请求；是否向调用方发增量仅由回调是否传入区分，最终响应路径保持一致。
         model = model or self.default_model
         sanitized_messages = self._sanitize_empty_content(messages)
         sanitized_state = (
@@ -102,6 +103,7 @@ class OpenAICodexProvider(LLMProvider):
             model=_strip_model_prefix(model),
         )
         session_id = provider_context.session_id if provider_context is not None else None
+        # 兼容 state 时只重放 provider 保存的 item 加本轮增量，避免从公开 history 重建私有 reasoning。
 
         body: dict[str, Any] = {
             "model": _strip_model_prefix(model),
@@ -182,6 +184,7 @@ class OpenAICodexProvider(LLMProvider):
                 and compact_threshold is not None
                 and responses_state_context_tokens(sanitized_state) >= compact_threshold
             ):
+                # 仅在服务端报告的上下文达到阈值时触发原生压缩；失败后退回普通 Responses 请求。
                 stage = "codex_compaction"
                 compact_body = {
                     **body,
@@ -337,6 +340,7 @@ def _without_response_item_ids(
     if not isinstance(raw_input, list):
         return request_body
 
+    # store=false 的 Codex 请求不接受客户端重放 item id；call_id 仍保留以维持工具结果关联。
     input_items: list[object] = cast(list[object], raw_input)
     sanitized_input: list[object] = []
     for raw_item in input_items:
@@ -432,6 +436,7 @@ async def _request_codex(
     on_thinking_delta: Callable[[str], Awaitable[None]] | None = None,
     on_tool_call_delta: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> LLMResponse:
+    # 原生端点没有 SDK 抽象：在此统一 HTTP 错误元数据、SSE 解析和可恢复 state 的生成。
     idle_timeout_s = resolve_stream_idle_timeout_s()
     client_kwargs: dict[str, Any] = {"timeout": idle_timeout_s, "verify": verify}
     if proxy:

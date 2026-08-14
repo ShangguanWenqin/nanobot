@@ -79,6 +79,7 @@ class XAIGrokProvider(LLMProvider):
         self._model_capabilities_fetched_at = 0.0
 
     async def _supports_backend_search(self, token: XAIToken, model: str) -> bool:
+        # 托管 X Search 是订阅后端按模型声明的能力；短 TTL 缓存避免每个 turn 都查询模型表。
         now = time.monotonic()
         capabilities = self._model_capabilities
         if (
@@ -120,6 +121,7 @@ class XAIGrokProvider(LLMProvider):
         on_thinking_delta: Callable[[str], Awaitable[None]] | None = None,
         on_tool_call_delta: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> LLMResponse:
+        # xAI 专用代理使用 Responses 语义和 OAuth；不经 OpenAICompatProvider 的通用 endpoint 路径。
         wire_model = _strip_model_prefix(model or self.default_model)
         system_prompt, input_items = convert_messages(messages)
 
@@ -147,6 +149,7 @@ class XAIGrokProvider(LLMProvider):
                     tool for tool in converted_tools if not _is_named_x_search_tool(tool)
                 ]
             if supports_backend_search:
+                # 后端搜索取代同名本地 function，避免模型在同一请求中收到两个 X Search 实现。
                 converted_tools.append({"type": "x_search"})
 
             body: dict[str, Any] = {
@@ -186,6 +189,7 @@ class XAIGrokProvider(LLMProvider):
                     on_tool_call_delta=on_tool_call_delta,
                 )
             except _XAIHTTPError as exc:
+                # 401 才强制刷新 OAuth token；其他 HTTP 错误交由统一 retry/fallback 元数据判定。
                 if exc.status_code != 401:
                     raise
                 stage = "oauth_refresh"
@@ -438,6 +442,7 @@ async def _request_xai(
     on_thinking_delta: Callable[[str], Awaitable[None]] | None = None,
     on_tool_call_delta: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> tuple[str, list[ToolCallRequest], str, LLMUsage | None, str | None]:
+    # 复用 Responses SSE parser，额外把 xAI custom hosted-tool 事件投影成 runner 可消费的进度。
     async def _on_response_event(event: dict[str, Any]) -> None:
         hosted_event = _xai_hosted_tool_event(event)
         if hosted_event is not None and on_tool_call_delta is not None:

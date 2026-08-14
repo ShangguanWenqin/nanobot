@@ -67,6 +67,7 @@ class OpenAICodexOAuthLoginFlow:
         return max(0, int(self._expires_at - time.monotonic()))
 
     def start(self) -> OpenAICodexOAuthLoginFlow:
+        # oauth-cli-kit 是阻塞式流程；后台线程只把授权 URL 和最终 token 暴露给 WebUI 两阶段接口。
         self._thread.start()
         wait_s = min(
             _AUTHORIZATION_URL_TIMEOUT_S,
@@ -101,6 +102,7 @@ class OpenAICodexOAuthLoginFlow:
         if callback_url is None:
             return None
 
+        # 先约束 loopback URL 并常量时间比对 state，用户粘贴的其他授权回调不能进入交换线程。
         callback_state, authorization_failed = _validate_callback_url(callback_url)
         if not hmac.compare_digest(callback_state, self._expected_state):
             raise OpenAICodexOAuthInputError(
@@ -148,6 +150,7 @@ class OpenAICodexOAuthLoginFlow:
             self._ready.set()
 
     def _capture_output(self, message: str) -> None:
+        # 依赖库只通过 print 回传授权链接，这里将其转为可轮询的公共 login-flow 状态。
         raw = str(message)
         start = raw.find(OPENAI_CODEX_PROVIDER.authorize_url)
         if start < 0:

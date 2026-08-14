@@ -290,6 +290,7 @@ class BedrockProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        # Converse 的 system 与普通 messages 分离；转换时保留 toolUse/toolResult 的原子对应关系。
         system: list[dict[str, Any]] = []
         converted: list[dict[str, Any]] = []
 
@@ -439,6 +440,7 @@ class BedrockProvider(LLMProvider):
             if choice:
                 tool_config["toolChoice"] = choice
         elif self._contains_tool_blocks(bedrock_messages):
+            # 历史已有工具块时即使本轮未暴露工具也要声明占位 schema，满足 Converse 的验证约束。
             tool_config = {"tools": [self._noop_tool()]}
 
         if tool_config:
@@ -550,6 +552,7 @@ class BedrockProvider(LLMProvider):
         tool_buffers: dict[int, dict[str, Any]],
         state: dict[str, Any],
     ) -> str | None:
+        # 使用 content block index 缓冲交错到达的工具参数和 reasoning，完成时再组成统一响应。
         if "contentBlockStart" in event:
             data = cast(dict[str, Any], event["contentBlockStart"])
             idx = int(data.get("contentBlockIndex") or 0)
@@ -761,6 +764,7 @@ class BedrockProvider(LLMProvider):
         on_thinking_delta: Callable[[str], Awaitable[None]] | None = None,
         on_tool_call_delta: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> LLMResponse:
+        # Converse 目前只向 runner 公开正文 delta；完整 reasoning/tool call 在流尾按统一契约返回。
         _ = on_thinking_delta, on_tool_call_delta
         idle_timeout_s = resolve_stream_idle_timeout_s()
         content_parts: list[str] = []

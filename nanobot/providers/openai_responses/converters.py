@@ -23,6 +23,7 @@ def convert_messages(
     from any ``system`` role message and *input_items* is the Responses API
     ``input`` array.
     """
+    # Chat history 仍是公开权威记录；这里仅投影为 Responses 的指令和 item 序列。
     system_prompt = ""
     input_items: list[dict[str, Any]] = []
     used_item_ids: set[str] = set()
@@ -55,6 +56,7 @@ def convert_messages(
                     "status": "completed", "id": message_id,
                 })
             for raw_tool_call in cast(list[object], msg.get("tool_calls", []) or []):
+                # 复合 id 保留 call_id 与输出 item id 两种语义，重放时再拆回 Responses 字段。
                 tool_call = _as_json_object(raw_tool_call)
                 if tool_call is None:
                     continue
@@ -87,6 +89,7 @@ def convert_user_message(content: Any) -> dict[str, Any]:
     if isinstance(content, str):
         return {"role": "user", "content": [{"type": "input_text", "text": content}]}
     if isinstance(content, list):
+        # 仅白名单多模态块可原样成为 tool output；未知结构退回 JSON 文本，避免伪造协议对象。
         converted: list[dict[str, Any]] = []
         for raw_item in cast(list[object], content):
             item = _as_json_object(raw_item)

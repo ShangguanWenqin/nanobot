@@ -51,6 +51,7 @@ def prepare_responses_input(
     When no compatible state exists, it is converted normally as a safe
     fallback.
     """
+    # 先保留可退化的全量投影；保存 state 端点/模型不完全匹配时绝不能局部重放。
     instructions, fallback_items = convert_messages(
         messages,
         preserve_reasoning=preserve_reasoning,
@@ -70,6 +71,7 @@ def prepare_responses_input(
         state.pending_messages,
         preserve_reasoning=preserve_reasoning,
     )
+    # 仅 state 边界后的 pending 消息补在 canonical item 后，避免重复发送既有 output。
     logger.debug(
         "Replaying Responses state: prior_items={} pending_messages={}",
         len(prior_items),
@@ -87,6 +89,7 @@ def build_responses_state(
     usage: LLMUsage | None = None,
 ) -> ProviderConversationState:
     """Create the canonical next state from request input and every output item."""
+    # state 记录 wire-level item（含加密 reasoning 等），不写入用户可见 Chat transcript。
     unpruned_items = [*input_items, *output_items]
     items = _prune_before_latest_output_compaction(input_items, output_items)
     if len(items) < len(unpruned_items):
@@ -169,6 +172,7 @@ def _prune_before_latest_output_compaction(
     A canonical compacted input may intentionally retain messages before its
     compaction item. Those messages must survive ordinary subsequent responses.
     """
+    # 只有本次输出确实产生新的 compaction item 才可遗忘此前输入，普通响应不能意外截断状态。
     latest = None
     for index, item in enumerate(output_items):
         if item.get("type") in _COMPACTION_ITEM_TYPES:

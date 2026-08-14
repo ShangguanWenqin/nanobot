@@ -82,6 +82,7 @@ class ToolCallRequest:
 
     def to_openai_tool_call(self) -> dict[str, Any]:
         """Serialize to an OpenAI-style tool_call payload."""
+        # 内部统一保留任意已解析参数；重放到 Chat 协议时才恢复其要求的 JSON 字符串形状。
         arguments = (
             self.arguments
             if isinstance(self.arguments, str)
@@ -121,6 +122,7 @@ def parse_tool_arguments(arguments: Any) -> Any:
         return {}
 
     try:
+        # 执行前只接受原始 JSON 的解析结果，绝不在这里“修复”模型输出后再调用工具。
         parsed = json.loads(stripped)
     except Exception:
         return arguments
@@ -148,6 +150,7 @@ def tool_arguments_object_for_replay(arguments: Any) -> dict[str, Any]:
     try:
         parsed = json.loads(stripped)
     except Exception:
+        # 修复仅服务于历史协议兼容；失败时退为空对象比伪造可执行参数更安全。
         try:
             parsed = json_repair.loads(stripped)
         except Exception:
@@ -183,6 +186,7 @@ class ProviderConversationState:
         messages: list[dict[str, Any]],
     ) -> ProviderConversationState:
         """Return a state copy with an isolated pending-message list."""
+        # 状态可跨 turn 持久化，待补送消息必须深拷贝，不能与 runner 的可变 history 共享引用。
         return ProviderConversationState(
             kind=self.kind,
             provider=self.provider,
@@ -563,6 +567,7 @@ class LLMResponse:
     reasoning_content: str | None = None  # Kimi, DeepSeek-R1, MiMo etc.
     thinking_blocks: list[dict[str, Any]] | None = None  # Anthropic extended thinking
     provider_state: ProviderConversationState | None = field(default=None, repr=False)
+    # provider_state 是私有 continuation，公开 assistant history 只保存其可重放投影。
     # Routing wrappers may preserve or discard an incoming provider-owned
     # continuation independently of the final fallback error's retry policy.
     preserve_provider_state_on_error: bool | None = field(default=None, repr=False)
@@ -1222,6 +1227,7 @@ class LLMProvider(ABC):
         full content as a single delta.  Providers that support native
         streaming should override this method.
         """
+        # 基类的流式降级只交付最终正文；专用后端才可声明推理/工具的增量语义。
         _ = on_thinking_delta, on_tool_call_delta
         response = await self.chat(
             messages=messages,

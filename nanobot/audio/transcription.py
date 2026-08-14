@@ -123,6 +123,7 @@ def resolve_transcription_config(config: Config) -> EffectiveTranscriptionConfig
     """Resolve top-level transcription settings with legacy channel fallback."""
     top = getattr(config, "transcription", None)
     channels = getattr(config, "channels", None)
+    # 顶层设置优先，兼容旧 channel 字段；解析结果随后冻结为一次请求可安全复用的配置。
     provider = (
         _as_provider(getattr(top, "provider", None))
         or _as_provider(getattr(channels, "transcription_provider", None))
@@ -174,6 +175,7 @@ async def transcribe_audio_data_url(
         config.max_upload_mb * 1024 * 1024 if config.max_upload_mb else _MAX_AUDIO_BYTES_FALLBACK,
     )
     try:
+        # 先受限解码落到受控临时目录，provider adapter 只接收文件路径而不接触 WebUI data URL。
         audio_path = save_base64_data_url(
             data_url,
             get_media_dir("webui-transcription"),
@@ -189,6 +191,7 @@ async def transcribe_audio_data_url(
     try:
         text = await transcribe_audio_file(audio_path, config)
     finally:
+        # 无论转写成功与否都清理上传副本，文本是此入口唯一应离开临时区的产物。
         with suppress(OSError):
             Path(audio_path).unlink(missing_ok=True)
     if not text:
@@ -207,6 +210,7 @@ async def transcribe_audio_file(
     if spec is None:
         logger.warning("Unknown transcription provider: {}", config.provider)
         return ""
+    # 注册表延迟导入具体 HTTP 后端，使应用层校验不依赖各提供方的可选库。
     provider = spec.load_adapter()(
         api_key=config.api_key,
         api_base=config.api_base or None,

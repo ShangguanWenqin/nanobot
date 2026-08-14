@@ -118,6 +118,7 @@ async def _request_json_with_retry(
     provider_label: str,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
+    # 适配器对外统一用空文本表示失败；仅瞬态网络/服务端状态重试，认证和格式错误立即返回。
     for attempt in range(_MAX_RETRIES + 1):
         try:
             request = getattr(client, method.lower(), None)
@@ -221,6 +222,7 @@ async def _post_transcription_with_retry(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     def build_request() -> dict[str, Any]:
+        # 每次重试重建 multipart 对象，确保文件流和可选 language 字段不会被上一次请求消费。
         files = {
             "file": (path.name, data, _audio_mime_type(path)),
             "model": (None, model),
@@ -355,6 +357,7 @@ async def _post_stepfun_asr_with_retry(
         "Accept": "text/event-stream",
     }
 
+    # StepFun 的最终文本在 SSE 完成事件中，不可套用普通 JSON 转写响应的提取器。
     async with httpx.AsyncClient() as client:
         for attempt in range(_MAX_RETRIES + 1):
             try:
@@ -557,6 +560,7 @@ class AssemblyAITranscriptionProvider:
             logger.exception("AssemblyAI transcription error: cannot read audio file: {}", e)
             return ""
 
+        # AssemblyAI 是上传→创建 transcript→轮询的异步协议，上传 URL 不是最终文本结果。
         headers = {"Authorization": self.api_key}
         async with httpx.AsyncClient() as client:
             upload = await _request_json_with_retry(
@@ -740,6 +744,7 @@ class OpenRouterTranscriptionProvider:
             logger.error("Audio file not found: {}", file_path)
             return ""
 
+        # OpenRouter 此处采用 base64 JSON 而非 OpenAI multipart，不能与同名 Whisper 路径混用。
         return await _post_json_transcription_with_retry(
             self.api_url,
             api_key=self.api_key,

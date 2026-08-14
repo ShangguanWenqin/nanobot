@@ -77,6 +77,7 @@ def login_github_copilot(
 ) -> OAuthToken:
     """Run GitHub device flow and persist the GitHub OAuth token used for Copilot."""
     del prompt_fn
+    # GitHub device token 仅用于交换短期 Copilot token，聊天请求绝不直接使用它。
     printer = print_fn or print
     timeout = httpx.Timeout(20.0, connect=20.0)
 
@@ -239,6 +240,7 @@ class GitHubCopilotProvider(OpenAICompatProvider):
             return self._copilot_access_token
 
     async def _refresh_client_api_key(self) -> str:
+        # 复用 OpenAICompatProvider 的协议实现前，先把其 SDK client 原地换成当前 Copilot access token。
         token = await self._get_copilot_access_token()
         client = await self._ensure_client()
         self.api_key = token

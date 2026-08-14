@@ -35,6 +35,7 @@ class TranscriptionProviderSpec:
     aliases: tuple[str, ...] = ()
 
     def load_adapter(self) -> type[TranscriptionProviderAdapter]:
+        # 用字符串注册避免启动时导入全部网络适配器，同时保留可验证的协议边界。
         module_name, _, class_name = self.adapter.partition(":")
         if not module_name or not class_name:
             raise RuntimeError(f"Invalid transcription adapter path: {self.adapter}")
@@ -43,6 +44,7 @@ class TranscriptionProviderSpec:
 
 
 TRANSCRIPTION_PROVIDERS: tuple[TranscriptionProviderSpec, ...] = (
+    # 这里是名称/默认模型到 provider HTTP adapter 的唯一映射，别与 LLM registry 混用。
     TranscriptionProviderSpec(
         name="groq",
         default_model="whisper-large-v3",

@@ -13,6 +13,7 @@ from nanobot.providers.registry import ProviderSpec, create_dynamic_spec, find_b
 
 @dataclass(frozen=True)
 class ProviderSnapshot:
+    # 网关以此不可变快照绑定一个 turn，避免配置热更新改变正在运行的 provider 链。
     provider: LLMProvider
     model: str
     context_window_tokens: int
@@ -43,6 +44,7 @@ def _provider_extra_headers(
     spec: ProviderSpec | None,
     provider_config: ProviderConfig | None,
 ) -> dict[str, str] | None:
+    # 注册表给出集成默认值，用户配置在同名键上拥有最终覆盖权。
     headers = dict(spec.default_extra_headers) if spec else {}
     if provider_config and provider_config.extra_headers:
         headers.update(provider_config.extra_headers)
@@ -87,6 +89,7 @@ def _resolve_provider_setup(
         raise ValueError(f"No provider is configured for model '{model}'.")
     spec = _provider_spec_for_config(provider_name, p)
     if not spec and p:
+        # 自定义 provider 必须显式给出端点，不能凭模型名推测其协议或凭据。
         if not p.api_base:
             raise ValueError(f"Provider '{provider_name}' requires api_base in config.")
         spec = create_dynamic_spec(
@@ -165,6 +168,7 @@ def _make_provider_core(
     spec = setup.spec
     backend = setup.backend
 
+    # 只有这些协议/认证语义不同的后端走专用实现；其余统一落到 OpenAI 兼容适配层。
     if backend == "openai_codex":
         from nanobot.providers.openai_codex_provider import OpenAICodexProvider
 
@@ -287,6 +291,7 @@ def make_provider(
     fallback_presets = _resolve_fallback_presets(config, resolved)
 
     if fallback_presets:
+        # 回退工厂故意只生成裸 provider，防止每一层 fallback 再递归包裹自身。
         provider = FallbackProvider(
             primary=provider,
             fallback_presets=fallback_presets,
@@ -320,6 +325,7 @@ def provider_signature(
     preset: ModelPresetConfig | None = None,
 ) -> tuple[object, ...]:
     """Return the config fields that affect the active provider chain."""
+    # 此签名用于判断快照是否失效；把请求形状和回退链都纳入，不能仅比较模型名。
     resolved = _resolve_model_preset(config, preset_name=preset_name, preset=preset)
     p = config.get_provider(resolved.model, preset=resolved)
     fallback_presets = _resolve_fallback_presets(config, resolved)
@@ -386,6 +392,7 @@ def build_provider_snapshot(
         fallback.context_window_tokens
         for fallback in _resolve_fallback_presets(config, resolved)
     ]
+    # runner 必须按链中最小窗口治理上下文，因为实际执行模型可能已经发生回退。
     return ProviderSnapshot(
         provider=make_provider(config, preset=resolved),
         model=resolved.model,

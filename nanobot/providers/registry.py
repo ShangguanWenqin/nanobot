@@ -141,6 +141,7 @@ class ProviderSpec:
 # ---------------------------------------------------------------------------
 
 PROVIDERS: tuple[ProviderSpec, ...] = (
+    # 配置匹配按此元组顺序短路；网关须先于按模型名猜测的专用提供方处理。
     # === Custom (direct OpenAI-compatible endpoint) ========================
     ProviderSpec(
         name="custom",
@@ -774,6 +775,7 @@ def create_dynamic_spec(
     thinking_style: str = "",
 ) -> ProviderSpec:
     """Create a dynamic ProviderSpec for custom user-defined providers."""
+    # 用户自定义端点没有静态注册信息，仍复用 OpenAI 兼容传输层和前缀剥离规则。
     normalized = to_snake(name.replace("-", "_"))
     strip_prefixes = tuple(dict.fromkeys((name, normalized)))
     return ProviderSpec(

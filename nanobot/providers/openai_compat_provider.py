@@ -530,6 +530,7 @@ class OpenAICompatProvider(LLMProvider):
         self._proxy = proxy or None
         self._native_compaction_available = True
 
+        # factory 已选定 spec；该实例只保存解析后的 endpoint/请求覆盖，避免再次按模型猜 provider。
         effective_base = api_base or (spec.default_api_base if spec else None) or None
         self._effective_base = effective_base
         self._default_headers = {"x-session-affinity": uuid.uuid4().hex}
@@ -689,6 +690,7 @@ class OpenAICompatProvider(LLMProvider):
         model: str | None = None,
     ) -> list[dict[str, Any]]:
         """Strip non-standard keys, normalize tool_call IDs."""
+        # 历史会跨 provider 重放；在 wire 边界收窄字段并重映射不被当前网关接受的 tool id。
         sanitized = LLMProvider._sanitize_request_messages(messages, _ALLOWED_MSG_KEYS)
         id_map: dict[str, str] = {}
         pending_tool_ids: dict[str, deque[str]] = {}
@@ -919,6 +921,7 @@ class OpenAICompatProvider(LLMProvider):
             if any(model_name.lower().startswith(k) for k in ("anthropic/", "claude")):
                 messages, tools = self._apply_cache_control(messages, tools)
 
+        # 仅由对应 ProviderSpec 决定是否剥离路由前缀，不能把 gateway 的完整模型名一概截断。
         model_name = self._request_model_name(model_name)
 
         kwargs: dict[str, Any] = {
@@ -1015,6 +1018,7 @@ class OpenAICompatProvider(LLMProvider):
 
         # Only send thinking controls when reasoning_effort is explicit so
         # omitting the config preserves each provider's default.
+        # 内部 effort 先归一，再映射到各后端的 thinking 字段；用户 extra_body 最后才参与合并。
         if reasoning_effort is not None:
             thinking_enabled = semantic_effort not in ("none", "minimal")
             for thinking_style in _thinking_styles_for(spec, model_name):
@@ -1082,6 +1086,7 @@ class OpenAICompatProvider(LLMProvider):
         reasoning_effort: str | None,
     ) -> bool:
         """Choose Responses for providers/models that explicitly support it."""
+        # Responses 是逐模型能力，不应因 provider 名称相同就假定所有兼容端点都实现该协议。
         if self._api_type == "chat_completions":
             return False
         spec_name = self._spec.name if self._spec is not None else None
@@ -1239,6 +1244,7 @@ class OpenAICompatProvider(LLMProvider):
         provider_context: ProviderCallContext | None = None,
     ) -> dict[str, Any]:
         """Build a Responses API body for direct OpenAI requests."""
+        # state 匹配时转换器给出“已确认 item + 本轮 pending”的连续输入；不匹配则安全全量投影。
         model_name = model or self.default_model
         model_name = self._request_model_name(model_name)
         sanitized_messages = self._sanitize_messages(
@@ -1284,6 +1290,7 @@ class OpenAICompatProvider(LLMProvider):
             max_tokens,
         )
         if self.supports_native_compaction(model_name) and compact_threshold is not None:
+            # 压缩由原生 OpenAI endpoint 执行；普通兼容端点不会收到未知的 context_management 参数。
             body["context_management"] = [{
                 "type": "compaction",
                 "compact_threshold": compact_threshold,
@@ -1955,6 +1962,7 @@ class OpenAICompatProvider(LLMProvider):
                     self._record_responses_success(model, reasoning_effort)
                     return result
                 except Exception as responses_error:
+                    # 仅协议不兼容才允许转 Chat Completions；强制 Responses/Copilot 要保留真实错误。
                     if self._spec and self._spec.name == "github_copilot":
                         # Copilot gateway exposes GPT-5/o-series only via /responses;
                         # falling back to /chat/completions cannot succeed and would
@@ -1993,6 +2001,7 @@ class OpenAICompatProvider(LLMProvider):
         provider_context: ProviderCallContext | None = None,
     ) -> LLMResponse:
         client = await self._ensure_client()
+        # 任一 SDK 流事件续期，Responses 的 reasoning 和函数参数可能长时间没有正文 delta。
         idle_timeout_s = resolve_stream_idle_timeout_s()
         try:
             if self._should_use_responses_api(model, reasoning_effort):
@@ -2042,6 +2051,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_content=reasoning_content,
                     )
                     if capture.completed and is_replayable_finish_reason(finish_reason):
+                        # 只为已完成且可重放的 Responses 流保存私有 item，异常/拒绝结果不能污染 continuation。
                         result.provider_state = build_responses_state(
                             provider=self._responses_state_provider(),
                             model=str(body["model"]),

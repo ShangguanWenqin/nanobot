@@ -24,6 +24,7 @@ class UnconfiguredProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMResponse:
+        # 网关仍可启动 Settings/WebUI；该哨兵返回不可重试配置错误，绝不尝试网络调用。
         return LLMResponse(
             content=(
                 "Nanobot needs a model before it can chat. Open Settings → Models "

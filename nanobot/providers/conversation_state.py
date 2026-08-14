@@ -47,6 +47,7 @@ class ProviderConversationStateController:
         self._provider = provider
         self._model = model
         self._session_id = session_id
+        # 私有 state 只有同一 provider/model 明确声明可恢复时才能复用，避免跨后端泄漏协议项。
         self._state = (
             state
             if state is not None
@@ -81,6 +82,7 @@ class ProviderConversationStateController:
         independent_context = self.independent_request_context(
             context_window_tokens=context_window_tokens,
         )
+        # 无 continuation 时仍可携带窗口信息，但不能把整个公开 transcript 伪装成私有增量。
         if self._state is None:
             self._request_messages = []
             return independent_context
@@ -110,6 +112,7 @@ class ProviderConversationStateController:
             *request_messages,
             *supplemental,
         ])
+        # provider 接收最近输出后的增量；公开 history 仍是 session 的权威可见记录。
         return ProviderCallContext(
             conversation_state=request_state,
             context_window_tokens=(
@@ -142,6 +145,7 @@ class ProviderConversationStateController:
                 self._model,
             )
         ):
+            # 仅正常可重放的结束原因推进边界，拒绝/错误响应不能成为下一次 continuation 的锚点。
             self._state = candidate
             self._boundary = len(messages)
             self._seal_boundary(messages)
@@ -152,6 +156,7 @@ class ProviderConversationStateController:
                 and LLMProvider.is_transient_response(response)
             )
         ):
+            # 可重试错误没有产生替代输出，保留本次增量以便下一次请求完整补送。
             if self._state is not None and self._request_messages:
                 self._state = self._state.with_pending_messages([
                     *self._state.pending_messages,
@@ -263,6 +268,7 @@ class ProviderConversationStateController:
         """Prevent later same-role injection merging across a state boundary."""
         if not messages:
             return
+        # 禁止入站消息合并跨越 provider 输出边界，否则会改变待补送增量的协议顺序。
         internal_meta = dict(messages[-1].get("_meta") or {})
         internal_meta[_PROVIDER_STATE_BOUNDARY_META] = True
         messages[-1]["_meta"] = internal_meta

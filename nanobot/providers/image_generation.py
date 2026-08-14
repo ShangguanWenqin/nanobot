@@ -247,6 +247,7 @@ def register_image_gen_provider(cls: type[ImageGenerationProvider]) -> None:
     The registry is populated by module side effects so provider discovery
     stays lazy and consistent across the process.
     """
+    # 图像 provider 是显式注册的独立能力表，不能复用聊天 registry 的 backend 分派。
     name = cls.provider_name
     if not name:
         raise ValueError(f"{cls.__name__} must set provider_name")
@@ -304,6 +305,7 @@ class ImageGenerationProvider(ABC):
         self._client = client
 
     def _resolve_base_url(self, api_base: str | None) -> str:
+        # 用户端点优先；没有覆盖时才读取同名 provider 的默认 URL，保持图像与聊天配置可共享。
         if api_base:
             return api_base.rstrip("/")
         spec = find_by_name(self.provider_name)
@@ -335,6 +337,7 @@ class ImageGenerationProvider(ABC):
         raise ImageGenerationError(f"{label} returned no images for this request")
 
     def _http_client_kwargs(self) -> dict[str, Any]:
+        # 显式 proxy 是用户选定的出口，关闭环境代理以免两个网络边界叠加。
         kwargs: dict[str, Any] = {"timeout": self.timeout}
         if self.proxy:
             kwargs["proxy"] = self.proxy
@@ -1229,6 +1232,7 @@ class OpenAIImageGenerationClient(ImageGenerationProvider):
 
         refs = list(reference_images or [])
         if refs:
+            # 参考图是 GPT Image 的 edits multipart 协议能力，不能伪装为普通 generations JSON 请求。
             if not _openai_is_gpt_image_model(clean_model):
                 raise ImageGenerationError(
                     f"OpenAI model '{clean_model}' does not support reference images; "
@@ -1326,6 +1330,7 @@ class CustomImageGenerationClient(ImageGenerationProvider):
             headers["Authorization"] = f"Bearer {self.api_key}"
         headers.update(self.extra_headers)
 
+        # Codex 订阅没有 Images API key；通过 Responses 的 hosted image_generation tool 请求并解析 SSE 输出。
         body: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -1584,6 +1589,7 @@ async def _parse_codex_sse_images(
     images: list[str] = []
     text_parts: list[str] = []
 
+    # 响应的图像结果在 output_item.done 才完整；按 SSE 帧缓冲以处理分行 data 字段。
     buffer: list[str] = []
     async for line_bytes in response.aiter_lines():
         line = line_bytes.strip()
@@ -2057,6 +2063,7 @@ class ModelScopeImageGenerationClient(ImageGenerationProvider):
         task_id: str,
         submit_headers: dict[str, str],
     ) -> list[str]:
+        # 提交和轮询协议使用不同 header；任务 id 是异步 API 的唯一完成凭据。
         poll_headers = {
             "Authorization": submit_headers["Authorization"],
             "X-ModelScope-Task-Type": "image_generation",
@@ -2117,6 +2124,7 @@ class ModelScopeImageGenerationClient(ImageGenerationProvider):
 # ---------------------------------------------------------------------------
 
 register_image_gen_provider(AIHubMixImageGenerationClient)
+# 注册顺序也是 UI/配置枚举顺序；实例化则由上层工具按名称延迟完成。
 register_image_gen_provider(CodexImageGenerationClient)
 register_image_gen_provider(CustomImageGenerationClient)
 register_image_gen_provider(GeminiImageGenerationClient)

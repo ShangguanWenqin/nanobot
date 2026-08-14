@@ -172,6 +172,7 @@ class FallbackProvider(LLMProvider):
         provider_context: ProviderCallContext,
         model: str | None,
     ) -> ProviderCallContext:
+        # 主模型可沿用自己的私有 state；原生压缩能力不能由包装层替其伪造。
         context_window_tokens = (
             self._primary_context_window_tokens
             if self._primary_context_window_tokens is not None
@@ -299,6 +300,7 @@ class FallbackProvider(LLMProvider):
         if not self._has_fallbacks:
             return await self._primary.chat_stream(**kwargs)
 
+        # 一旦正文已发给用户，普通错误不能切换模型重放而造成重复；超时另由恢复回调分段处理。
         has_streamed: list[bool] = [False]
         original_delta = kwargs.get("on_content_delta")
 
@@ -524,6 +526,7 @@ class FallbackProvider(LLMProvider):
             }
             provider_context = fallback_kwargs.get("provider_context")
             if isinstance(provider_context, ProviderCallContext):
+                # fallback 后端不认识主后端的 continuation 时丢弃 state，但保留该模型自己的窗口约束。
                 state = provider_context.conversation_state
                 if state is not None and not fallback_provider.can_resume_conversation_state(
                     state,

@@ -21,6 +21,7 @@ __all__ = [
 ]
 
 _LAZY_IMPORTS = {
+    # 包级导出保持轻量：只在调用方真正取用专用后端时才加载其可选依赖。
     "AnthropicProvider": ".anthropic_provider",
     "OpenAICompatProvider": ".openai_compat_provider",
     "OpenAICodexProvider": ".openai_codex_provider",
