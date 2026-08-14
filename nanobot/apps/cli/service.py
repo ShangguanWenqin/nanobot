@@ -1446,7 +1446,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         timeout: int | None = None,
         restrict_to_workspace: bool = False,
     ) -> str:
-        # 只能从已记录安装项解析入口点，模型提供的 args 保持为独立 argv 元素，不经 shell 拼接执行。
+        # 应用名须在安装表；入口点优先取安装记录，字段为空或旧格式缺失时回退当前目录项。
         app = self.get_app(name)
         installed = self._load_installed()
         if str(app["name"]) not in installed:

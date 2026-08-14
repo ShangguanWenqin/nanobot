@@ -124,7 +124,7 @@ class CliAppsTool(Tool):
         self,
         request: RequestContext,
     ) -> RuntimeContextBlock | None:
-        # 结构化附件与兼容文本回退都取自本 turn 的 RequestContext 快照，且只解析已安装应用。
+        # 结构化附件只规范名称/形状并生成提示；文本回退才筛已安装项，执行时还会再次校验。
         lines = runtime_lines_for_request(
             request.original_user_text or "",
             request.metadata,
