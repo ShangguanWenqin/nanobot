@@ -129,7 +129,7 @@ class FeishuWsRunner:
         if runtime is None:
             return
         runtime.stop_event.set()
-# 停止时先取消 SDK 丢失句柄的 receive task 并关闭自动重连，避免正常 shutdown 被 SDK 重新拨号。
+        # 停止时先取消 SDK 丢失句柄的 receive task 并关闭自动重连，避免正常 shutdown 被 SDK 重新拨号。
         runtime.client._auto_reconnect = False
         try:
             receive_tasks = tuple(runtime.receive_tasks)

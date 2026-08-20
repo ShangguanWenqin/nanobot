@@ -128,7 +128,7 @@ def _merge_form_values(
     *,
     setup_spec: ChannelSetupSpec | None = None,
 ) -> dict[str, Any]:
-# 空 secret 表单值表示“保持已保存的秘密”，避免浏览器快照覆盖配置中的凭据。
+    # 空 secret 表单值表示“保持已保存的秘密”，避免浏览器快照覆盖配置中的凭据。
     merged = dict(values)
     prefix = f"channels.{name}."
     spec = setup_spec
@@ -360,7 +360,7 @@ def _http_post(url: str, *, headers: dict[str, str] | None = None) -> dict[str, 
 
 
 def _probe_tcp(host: str, port: int, *, allow_loopback: bool = False) -> None:
-# 先经 SSRF/DNS 策略解析允许的 IP，再直连该已验证地址，避免 DNS 重绑定绕过设置页的可达性检查。
+    # 先经 SSRF/DNS 策略解析允许的 IP，再直连该已验证地址，避免 DNS 重绑定绕过设置页的可达性检查。
     url_host = host if ":" not in host or host.startswith("[") else f"[{host}]"
     ok, error, resolved_ips = resolve_url_target(
         f"http://{url_host}:{port}/",

@@ -1,4 +1,4 @@
-// 提示轨道维护线程内的本地浏览焦点，并将选择结果交给 composer 作为下一次发送的辅助上下文。
+// 提示轨道标记已渲染的用户提示；点击只调用 onJumpToPrompt 定位既有内容，不修改 composer 或下次发送上下文。
 import {
   Fragment,
   type RefObject,

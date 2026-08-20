@@ -174,7 +174,7 @@ class ChannelManager:
     ) -> BaseChannel:
         kwargs: dict[str, Any] = {}
         if cls.name == "websocket":
-# WebSocket 是 gateway 的浏览器边界，故由组合根注入会话、cron、MCP 等服务；普通平台只有 config 与 bus。
+            # WebSocket 是 gateway 的浏览器边界，故由组合根注入会话、cron、MCP 等服务；普通平台只有 config 与 bus。
             from nanobot.channels.websocket.runtime import WebSocketConfig
             from nanobot.webui.gateway_services import build_gateway_services
 
@@ -254,7 +254,7 @@ class ChannelManager:
                 continue
             if not runtime_specs:
                 continue
-# 同一插件可展开多个实例名；先登记 owner/spec 以便检测跨插件的命名冲突，再加载实际 runtime。
+            # 同一插件可展开多个实例名；先登记 owner/spec 以便检测跨插件的命名冲突，再加载实际 runtime。
             collisions = sorted(
                 set(self._channel_runtime_specs)
                 & {runtime_name for runtime_name, _spec in runtime_specs}
@@ -279,7 +279,7 @@ class ChannelManager:
             if name in dependency_errors:
                 continue
             try:
-# 可选依赖只为已通过依赖检查的激活实例导入，单个平台不可用不会中断 gateway 其余通道。
+                # 可选依赖只为已通过依赖检查的激活实例导入，单个平台不可用不会中断 gateway 其余通道。
                 cls = plugin.load_channel_class()
                 built = [
                     (
@@ -460,7 +460,7 @@ class ChannelManager:
             )
             stopped = False
             for runtime_name in runtime_names:
-# 动态禁用必须先停止长连接任务，再从路由表删除，避免出站分发命中已失效实例。
+                # 动态禁用必须先停止长连接任务，再从路由表删除，避免出站分发命中已失效实例。
                 stopped = await self._stop_channel(runtime_name) or stopped
                 self.channels.pop(runtime_name, None)
                 self._channel_owners.pop(runtime_name, None)
@@ -591,7 +591,7 @@ class ChannelManager:
             return
 
         self._started = True
-# manager 独占 bus 的 outbound 消费；adapter 只负责最终平台 API 调用，避免多消费者重复投递。
+        # manager 独占 bus 的 outbound 消费；adapter 只负责最终平台 API 调用，避免多消费者重复投递。
         # Start outbound dispatcher
         self._dispatch_task = asyncio.create_task(self._dispatch_outbound())
 
@@ -701,7 +701,7 @@ class ChannelManager:
         """Dispatch outbound messages to the appropriate channel."""
         logger.info("Outbound dispatcher started")
 
-# 队列没有 push_front，合并流式 delta 时遇到下一条不同消息要暂存在此处，严格保留原始出站顺序。
+        # 队列没有 push_front，合并流式 delta 时遇到下一条不同消息要暂存在此处，严格保留原始出站顺序。
         # Buffer for messages that couldn't be processed during delta coalescing
         # (since asyncio.Queue doesn't support push_front)
         pending: list[OutboundMessage] = []
@@ -757,7 +757,7 @@ class ChannelManager:
                 # Coalesce consecutive stream delta messages for the same (channel, chat_id)
                 # to reduce API calls and improve streaming latency
                 if isinstance(event, StreamDeltaEvent):
-# manager 只合并同一 channel/chat/stream 的相邻片段以降低平台 API 压力；平台自身仍决定如何编辑或拆分消息。
+                    # manager 只合并同一 channel/chat/stream 的相邻片段以降低平台 API 压力；平台自身仍决定如何编辑或拆分消息。
                     msg, extra_pending = self._coalesce_stream_deltas(msg)
                     pending.extend(extra_pending)
                     event = outbound_event_from_message(msg)
@@ -815,7 +815,7 @@ class ChannelManager:
         msg: OutboundMessage,
         event: StreamDeltaEvent | StreamEndEvent,
     ) -> None:
-# StreamEnd 的 merge_next 是可恢复 provider 的边界提示；通过签名探测保持旧插件不因新增参数失效。
+        # StreamEnd 的 merge_next 是可恢复 provider 的边界提示；通过签名探测保持旧插件不因新增参数失效。
         kwargs: dict[str, Any] = {
             "stream_id": event.stream_id,
             "stream_end": isinstance(event, StreamEndEvent),
@@ -956,7 +956,7 @@ class ChannelManager:
             except asyncio.CancelledError:
                 raise  # Propagate cancellation for graceful shutdown
             except Exception as e:
-# 可重试性由适配器判定：平台业务错误通常不会因退避而恢复，网络/未知错误才走统一指数退避。
+                # 可重试性由适配器判定：平台业务错误通常不会因退避而恢复，网络/未知错误才走统一指数退避。
                 if not channel.should_retry_send_error(e):
                     logger.error(
                         "Send to {} failed with a non-retryable {}: {}",

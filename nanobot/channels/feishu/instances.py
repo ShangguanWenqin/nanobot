@@ -113,7 +113,7 @@ def feishu_instance_specs(
     enabled_only: bool = False,
 ) -> list[ChannelInstanceSpec]:
     """Expand legacy or canonical Feishu config into runtime instance specs."""
-# 兼容扁平旧配置与 instances 列表；启用态下还排除相同 domain+appId，避免同一飞书应用被双重连接。
+    # 兼容扁平旧配置与 instances 列表；启用态下还排除相同 domain+appId，避免同一飞书应用被双重连接。
     raw_specs, inherited = _feishu_instance_inputs(section, defaults)
 
     specs: list[ChannelInstanceSpec] = []

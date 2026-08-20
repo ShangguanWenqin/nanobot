@@ -89,7 +89,7 @@ def convert_user_message(content: Any) -> dict[str, Any]:
     if isinstance(content, str):
         return {"role": "user", "content": [{"type": "input_text", "text": content}]}
     if isinstance(content, list):
-        # 仅白名单多模态块可原样成为 tool output；未知结构退回 JSON 文本，避免伪造协议对象。
+        # 用户消息只映射 text/image_url；未知块直接跳过，无有效块时由函数返回空 input_text。
         converted: list[dict[str, Any]] = []
         for raw_item in cast(list[object], content):
             item = _as_json_object(raw_item)

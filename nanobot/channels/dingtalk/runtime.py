@@ -231,7 +231,7 @@ class DingTalkChannel(BaseChannel):
     Group chat_id is stored with a "group:" prefix to route replies back.
     """
 
-# 入站来自 SDK WebSocket，出站则走 HTTP；远程媒体下载另受 URL 校验、重定向数和 20MB 上限约束。
+    # 入站来自 SDK WebSocket，出站则走 HTTP；远程媒体下载另受 URL 校验、重定向数和 20MB 上限约束。
     name = "dingtalk"
     display_name = "DingTalk"
     _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}

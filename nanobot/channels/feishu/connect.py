@@ -134,7 +134,7 @@ class FeishuConnectStore:
 
         status = result.get("status")
         if status == "succeeded":
-# completion lock 防止并发 poll/cancel 对同一个二维码会话重复写入或误报告成功。
+            # completion lock 防止并发 poll/cancel 对同一个二维码会话重复写入或误报告成功。
             with self._completion_lock:
                 if self._sessions.get(session_id) is not session:
                     return {

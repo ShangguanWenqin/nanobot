@@ -100,7 +100,7 @@ sequenceDiagram
 
 - `context_governance` 在请求前治理 token/context；provider 通过 `LLMRuntime.provider` 发起 `chat`/`chat_stream`，超时、可重试异常和空响应在 runner 中恢复。
 - 流式 reasoning/text 经过 hook/delivery 逐块发出；完整响应保留 finish reason、usage 和 provider state。
-- tool calls 由 `ToolRegistry.prepare` 校验/标准化，再由 `execute` 运行。进度、文件编辑、checkpoint 和 tool result 回到同一 turn；工具可通过 ContextVar 读取 `RequestContext`、workspace 和状态服务。
+- tool calls 由 `ToolRegistry.prepare_call()` 解析、转换并校验；`AgentRunner` 在成功解析后直接调用 `Tool.execute()`，无法预解析的兼容对象才回退 `ToolRegistry.execute()`。进度、文件编辑、checkpoint 和 tool result 回到同一 turn；工具可通过 ContextVar 读取 `RequestContext`、workspace 和状态服务。
 - pending 用户注入、显式持续目标和 max-iteration 恢复决定是否继续下一次 LLM 调用；runner 不直接写 JSONL，最终由 loop 的 save 阶段持久化。
 
 ### 2.4 出站交付
@@ -134,7 +134,7 @@ sequenceDiagram
 | 扩展面 | 发现/注册 | 调用契约 | 兼容责任 |
 | --- | --- | --- | --- |
 | Provider | `nanobot/providers/registry.py` 的有序 `ProviderSpec` 与配置查找；`factory.py` 实例化 | `LLMProvider.chat/chat_stream` 返回 `LLMResponse`/stream chunks | registry/factory 处理 model 前缀、reasoning、prompt cache、max token 参数、Responses state、fallback 和代理配置 |
-| Tool | `nanobot/agent/tools/registry.py` 内建扫描、entry point/plugin/MCP 注册 | `Tool.prepare` + `Tool.execute`，schema 和 ContextVar 由 base/context 提供 | 名称冲突、权限、运行时上下文 provider、checkpoint/progress 均由 registry/runner 边界处理 |
+| Tool | `nanobot/agent/tools/registry.py` 内建扫描、entry point/plugin/MCP 注册 | `ToolRegistry.prepare_call()` 负责解析/校验，主路径调用 `Tool.execute()`；`ToolRegistry.execute()` 保留兼容与无法预解析的兜底 | 名称冲突、权限、运行时上下文 provider、checkpoint/progress 均由 registry/runner 边界处理 |
 | Channel | package manifest + `nanobot/channels/registry.py`；manager 按配置创建实例 | `BaseChannel.start/stop/send` 与可选 streaming/reasoning 方法；入站统一 `_handle_message` | 各适配器拥有平台协议、限长、媒体与重试；manager 只做生命周期和一致出站 |
 | App/CLI app | `nanobot/apps/protocol.py` 与 `nanobot/apps/cli/*` | manifest、安装状态、运行命令及 runtime context | 进程执行和安装权限不能当作普通纯函数 |
 | Hook | `AgentHook`/turn hook factory/CompositeHook | run/turn/tool/file-edit 等 hook 上下文 | hook 异常隔离、ephemeral 是否运行额外 hook 由 loop/SDK 参数决定 |
@@ -175,8 +175,8 @@ Python 发出的 WS 事件与 `webui/src/lib/types.ts` 的 `InboundEvent` 对齐
 
 ### 5.4 设置更新
 
-- 读取型设置走 `GatewayHTTPHandler` 的 `/api/settings/*` 路由；修改既可走 HTTP，也可由 `webui_request` 映射到同一个 mutation router，映射表在 `nanobot/webui/ws_http.py`。
-- 服务端 settings controller/service 在 `nanobot/webui/settings_api.py`、`settings_services.py`、`settings_controllers.py` 写配置并发布 model/config/runtime 失效事件。
+- 读取型设置走 `GatewayHTTPHandler` 的 `/api/settings/*` 路由；普通 REST mutation 明确返回 405，只有已认证 WebUI WebSocket 的 `webui_request` 才由 `nanobot/webui/ws_http.py` 转成受白名单约束的内部请求。
+- `settings_routes.py` 负责内部路由，`settings_models.py`、`settings_capabilities.py`、`settings_system.py` 实现各设置域，`settings_services.py` 串行配置读改写；调用链再发布 model/config/runtime 失效事件。
 - Channel 启用/禁用由 `ChannelManager` 动态应用；需要重启的 runtime/browser/image 能力通过 payload 明确返回，前端 settings contracts/controller 不应自行猜测。
 
 ## 6. 安全与兼容边界
@@ -191,7 +191,7 @@ Python 发出的 WS 事件与 `webui/src/lib/types.ts` 的 `InboundEvent` 对齐
 | Provider 差异 | reasoning 字段、thinking 参数、token 字段、prompt cache、Responses continuation/compaction、model prefix 和 fallback 均是显式兼容策略 | `nanobot/providers/registry.py`、`factory.py`、各 provider 与 `openai_responses/*` |
 | Channel 协议限制 | BaseChannel 只定义最小契约；文本限长、平台 markdown、媒体下载/上传、ack/edit/rate limit 由适配器负责。WebSocket 另有 frame 上限、ping、chat/attachment/text ingress 限制 | `nanobot/channels/base.py`、各 `nanobot/channels/*/runtime.py`、`nanobot/channels/websocket/runtime.py`、`nanobot/webui/ingress_policy.py` |
 | WebUI 信任 | HTTP 与 WS 同端口但不同鉴权分支；只有 audience 为 `webui` 的连接能做 mutation。设置 mutation 不自动重试，且 chat allowlist 在异步边界后复核 | `nanobot/channels/websocket/runtime.py`、`nanobot/webui/ws_http.py`、`webui/src/lib/nanobot-client.ts` |
-| 跨平台进程 | PID 存活不等于目标进程身份；状态保存 PID、平台身份（Windows 创建时间、POSIX 进程组）及命令元数据，并用锁保护当前或先前实例的受管进程，Windows/Unix 信号与 job object 不同 | `nanobot/process_runtime.py`、`nanobot/agent/tools/exec_session.py`、`_windows_job.py` |
+| 跨平台进程 | PID 存活不等于目标进程身份；状态文件记录 PID、可选平台 identity（Windows 创建时间、POSIX 进程组）及命令元数据。identity 存在时必须匹配当前进程；旧或不完整状态缺失 identity 时保留仅 PID 校验的兼容路径 | `nanobot/process_runtime.py`、`nanobot/agent/tools/exec_session.py`、`_windows_job.py` |
 
 ## 7. 中文注释批次依赖
 

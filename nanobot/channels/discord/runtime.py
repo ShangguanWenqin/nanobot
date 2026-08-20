@@ -353,7 +353,7 @@ if DISCORD_AVAILABLE:
 class DiscordChannel(BaseChannel):
     """Discord channel using discord.py."""
 
-# 适配器统一 normalise DM、群聊、线程和 slash command；线程单独构造 session_key 以保留对话隔离。
+    # 适配器统一 normalise DM、群聊、线程和 slash command；线程单独构造 session_key 以保留对话隔离。
     name = "discord"
     display_name = "Discord"
     _STREAM_EDIT_INTERVAL = 0.8

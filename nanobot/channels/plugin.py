@@ -138,7 +138,7 @@ def load_channel_package(name: str) -> ChannelPlugin | None:
     if not has_channel_package(name):
         return None
 
-# manifest 的 runtime/connector 必须仍在本包内，阻断配置把动态导入指向任意模块。
+    # manifest 的 runtime/connector 必须仍在本包内，阻断配置把动态导入指向任意模块。
     module_name = f"nanobot.channels.{name}.manifest"
     module = importlib.import_module(module_name)
     plugin = getattr(module, "PLUGIN", None)

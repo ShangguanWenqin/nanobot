@@ -67,7 +67,9 @@ git ls-files \
 - 重新枚举得到 602 个 Git 跟踪候选，预过滤 136 个测试文件后剩 466 个；台账 466 条路径唯一，412 个 `include` 与 54 个 `exclude` 恰好闭合，所有 `include` 且仅 `include` 源码发生变化。
 - Python 标准库 `tokenize` 审计忽略 `COMMENT`、`NL`、`ENCODING` 和位置字段，比较 `(token_type, token_string)`：261 / 261 等价，无 mismatch。
 - TypeScript 5.9.3 scanner 以 `skipTrivia=true`（TSX 使用 JSX language variant）比较 token kind 与原文：151 / 151 等价，无 mismatch；未使用正则去除注释。
+- Task 11 ledger 的 7 条 deferred minor 经最终审查修正后 7 / 7 已解决；其中受管进程说明保留了旧状态缺失 identity 时仅校验 PID 的兼容语义。
 - 逐文件源码 diff 审查 412 / 412：仅新增 830 行含中文的 `#` 或 `//` 注释，删除 0 行源码；54 个 `exclude` 文件无变更。`git diff --check 6bf08edf` 通过。
+- 全部 679 行新增 Python 注释另做块层级复核，与其所说明的实际语句对齐；最终审查发现的 27 条列 0 注释均只移动缩进，未改任何 Python token。
 - 按约束未运行测试、类型检查或构建；本节只声明覆盖、token 与 Git 差异的静态审计结果。
 
 ## 3. 批次定义

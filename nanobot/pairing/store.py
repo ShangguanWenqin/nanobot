@@ -182,7 +182,7 @@ def is_approved(channel: str, sender_id: str) -> bool:
         try:
             data = _load()
         except OSError:
-# 授权存储暂不可读时宁可拒绝本次消息，不能把 I/O 故障降级成默认放行。
+            # 授权存储暂不可读时宁可拒绝本次消息，不能把 I/O 故障降级成默认放行。
             # Fail closed for this check; the store itself stays untouched.
             return False
         approved: dict[str, set[str]] = data.get("approved", {})
