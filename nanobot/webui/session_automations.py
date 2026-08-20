@@ -12,6 +12,7 @@ from nanobot.triggers.local_types import LocalTrigger
 
 AutomationJob = CronJob | LocalTrigger
 
+# 这里汇总绑定到会话的自动化展示；调度、持久化及与活跃 turn 的互斥仍由 Cron/trigger 服务拥有。
 
 class _CronServiceLike(Protocol):
     def list_jobs(self, include_disabled: bool = False) -> list[CronJob]: ...

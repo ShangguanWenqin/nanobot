@@ -23,6 +23,7 @@ from nanobot.webui.transcript import (
 
 _VISIBLE_ROLES = {"user", "assistant"}
 
+# 搜索和引用只投影可公开的历史消息，内部命令、隐藏记录和 RuntimeContext 不进入模型可见的会话摘录。
 
 class SessionMention(TypedDict):
     id: str

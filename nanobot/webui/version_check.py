@@ -21,6 +21,7 @@ _CACHE_TTL_S = 300  # 5 minutes cache to avoid hammering PyPI
 
 _cache: tuple[float, str | None] = (0.0, None)
 
+# 版本查询只能由显式请求触发；短缓存抑制重复出网，失败不影响 Gateway 的其余服务。
 
 def check_for_update() -> dict[str, Any] | None:
     """Check PyPI for a newer version. Returns update info dict or None if up-to-date.

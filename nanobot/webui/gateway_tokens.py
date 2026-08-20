@@ -16,6 +16,7 @@ IssuedTokenAudience = Literal["client", "webui"]
 
 @dataclass
 class GatewayTokenStore:
+    # issued token 只允许消费一次并绑定 audience，避免 bootstrap 凭据成为长期 WS mutation 凭据。
     """Own short-lived WebSocket and WebUI API tokens for one gateway process."""
 
     max_tokens: int = 10_000

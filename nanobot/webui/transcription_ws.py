@@ -18,6 +18,7 @@ from nanobot.config.loader import load_config
 
 _MAX_REQUEST_ID_LENGTH = 80
 
+# 转写经 WS 返回同一 request_id 的一次性结果，不把音频 data URL 或 provider 异常写入 transcript/session。
 
 async def webui_transcription_event(
     envelope: dict[str, Any],

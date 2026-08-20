@@ -64,6 +64,7 @@ _MCP_RUNTIME_STATUSES = {"connecting", "connected", "failed"}
 McpReload = Callable[[], Awaitable[dict[str, Any]]]
 McpRuntimeStatus = Callable[[], Mapping[str, str]]
 
+# 预设编辑的是持久化配置；运行时连通性和热重载结果由调用它的 settings 服务反馈给前端。
 
 class McpPresetError(Exception):
     """WebUI-facing MCP preset error."""

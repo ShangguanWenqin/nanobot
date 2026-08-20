@@ -55,6 +55,7 @@ _CLI_AGENT = "openclaw"
 _weekly_cache: dict[tuple[str, str], list[int]] = {}
 _weekly_cache_expires_at = 0.0
 
+# 市场下载属于外部不可信输入：固定网络 transport、校验归档条目后才允许写入受限的 workspace skills 目录。
 
 def _response_json_object(response: httpx.Response) -> dict[str, Any] | None:
     """Narrow an untyped HTTP JSON response at the external-data boundary."""

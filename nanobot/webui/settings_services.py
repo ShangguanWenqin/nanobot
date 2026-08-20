@@ -16,6 +16,7 @@ from nanobot.config.schema import Config
 _T = TypeVar("_T")
 _WEBUI_OAUTH_MAX_FLOWS = 8
 
+# 同一 Gateway 实例用锁串行 config 读改写，避免 HTTP 和 WebSocket mutation 互相覆盖。
 
 class WebUISettingsConfig:
     """Path-scoped config access with process-safe read-modify-write operations."""

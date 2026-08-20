@@ -32,6 +32,7 @@ _SOURCE_TOP_LEVEL_FILES = (
 )
 _SOURCE_DIRS = ("src", "public")
 
+# CLI 只判断和驱动前端产物；浏览器请求仍由 Gateway 的 HTTP/WS 组合服务接收。
 
 class WebUIBuildError(RuntimeError):
     """Raised when the local WebUI bundle cannot be built."""

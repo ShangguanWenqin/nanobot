@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     from nanobot.webui.gateway_services import GatewayServices
 
+# fork 同时复制 Agent session 与仅供显示的 transcript，二者缺一时需回滚，避免前端看到不一致历史。
 
 class WebUIForkHost(Protocol):
     gateway: GatewayServices

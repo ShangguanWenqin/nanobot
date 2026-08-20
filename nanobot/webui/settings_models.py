@@ -51,6 +51,7 @@ SettingsPayloadBuilder = Callable[..., dict[str, Any]]
 HttpGet = Callable[..., httpx.Response]
 SettingsOperation = Callable[..., dict[str, Any]]
 
+# provider 密钥在 DTO 中必须脱敏；浏览器回传占位符时仅保留已存值，绝不把掩码写回配置。
 
 @dataclass(frozen=True)
 class ModelSettingsOperations:

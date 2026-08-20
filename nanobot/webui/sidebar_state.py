@@ -32,6 +32,7 @@ _ALLOWED_SORTS = {"updated_desc", "created_desc", "title_asc", "manual"}
 _ALLOWED_WORKBENCH_LAYOUTS = {"columns", "rows", "grid", "bsp", "main-stack"}
 _SIDEBAR_STATE_WRITE_LOCK = threading.Lock()
 
+# 侧栏偏好与 session/transcript 分开保存；它可丢弃或重建，绝不作为对话业务状态的权威来源。
 
 def webui_sidebar_state_path() -> Path:
     return get_webui_dir() / "sidebar-state.json"

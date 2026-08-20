@@ -10,6 +10,7 @@ from nanobot.config.paths import get_webui_dir
 from nanobot.session.manager import SessionManager
 from nanobot.webui.transcript import delete_webui_transcript
 
+# 旧 JSON 快照只是兼容副本；删除会同步清理 transcript，但 session 的删除仍由其所有者显式执行。
 
 def webui_thread_file_path(session_key: str) -> Path:
     stem = SessionManager.safe_key(session_key)

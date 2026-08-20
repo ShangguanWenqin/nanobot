@@ -19,6 +19,7 @@ from nanobot.webui.build import default_webui_source_dir, pick_webui_build_runne
 WEBUI_DEV_HOST = "127.0.0.1"
 WEBUI_DEV_PORT = 5173
 
+# 开发服务器仅代理浏览器流量，鉴权和业务状态仍由已运行的 Gateway 后端所有。
 
 class WebUIDevError(RuntimeError):
     """Raised when the local Vite development server cannot be started."""

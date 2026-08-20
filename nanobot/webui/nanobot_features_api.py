@@ -15,6 +15,7 @@ from nanobot.webui.http_utils import query_first
 
 QueryParams = dict[str, list[str]]
 
+# 此处仅规范化功能开关请求；实际安装、进程管理和运行时变更权限由 settings controller 决定。
 
 def nanobot_features_payload(*, config_path: Path | None = None) -> dict[str, Any]:
     if config_path is None:

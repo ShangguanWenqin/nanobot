@@ -32,6 +32,7 @@ _LEGACY_RESTRICTED_DEFAULT_ACCESS_MODE = "restricted"
 _WEBUI_SCOPE_CHANNEL = "websocket"
 _MAX_DRAFT_SCOPES = 128
 
+# 浏览器只能把既有 scope 收窄；项目路径或访问权限的提升必须由可信本机流程重新建立 scope。
 
 def _scope_change_is_non_escalating(current: WorkspaceScope, requested: WorkspaceScope) -> bool:
     """Allow a remote request only when it keeps the project and does not add access."""

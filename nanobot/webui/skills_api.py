@@ -12,6 +12,7 @@ from nanobot.agent.skills import SkillsLoader
 from nanobot.config.loader import load_config, save_config
 from nanobot.security.workspace_policy import WorkspaceBoundaryError, require_path_within
 
+# 技能管理请求在 workspace 边界内执行，返回 payload 会省略本地绝对路径等不该暴露给浏览器的信息。
 
 class SkillManagementError(Exception):
     """A safe skill-management error for the WebUI."""

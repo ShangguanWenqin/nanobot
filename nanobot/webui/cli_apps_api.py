@@ -27,6 +27,7 @@ _catalog_refresh_task: asyncio.Task[None] | None = None
 _catalog_refresh_last_started = 0.0
 
 
+# 目录刷新是尽力而为的后台工作，节流状态属于当前 WebUI 进程而不是持久化设置。
 async def _refresh_catalog(manager: CliAppManager) -> None:
     try:
         await manager.refresh_catalog_cache(force_refresh=True)

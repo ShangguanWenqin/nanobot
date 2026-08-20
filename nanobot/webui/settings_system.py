@@ -40,6 +40,7 @@ LoadChannelPlugin = Callable[[str], Any]
 ListPendingPairings = Callable[[], Iterable[dict[str, Any]]]
 SettingsOperation = Callable[..., Any]
 
+# 系统设置域负责配置 DTO 与受控操作适配；channel/MCP 的真实连接生命周期仍归各 runtime 所有。
 
 @dataclass(frozen=True)
 class SystemSettingsOperations:

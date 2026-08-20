@@ -72,6 +72,7 @@ _MCP_OAUTH_CALLBACK_URL_MAX_BYTES = 8 * 1024
 _MCP_RELOAD_TIMEOUT_SECONDS = 15.0
 _query_first = contracts.query_first
 
+# REST mutation 与 WS webui_request 都汇入此路由；响应事件通知前端刷新，持久化配置才是权威状态。
 
 def _channel_connect_route(path: str) -> tuple[str, str] | None:
     prefix = "/api/settings/channels/"

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class GatewayServices:
+    # Gateway 组合根一次性注入这些所有者，HTTP 路由和 WebSocket channel 共享它们而不各自创建状态。
     """Explicit dependencies shared by WebSocket transport and HTTP routes."""
 
     http: GatewayHTTPHandler

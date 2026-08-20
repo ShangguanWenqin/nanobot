@@ -73,6 +73,7 @@ MAX_SESSION_MENTIONS = 8
 _SESSION_MENTION_NAME_RE = re.compile(r"^[\w-]+$")
 _SESSION_HANDLE_ID_RE = re.compile(r"^handle_[0-9a-f]{32}$")
 
+# transcript 是供浏览器回放的追加显示日志，独立于 Agent session；事件只作低延迟通知，HTTP 读取的重放结果才用于权威对账。
 
 def rewrite_local_markdown_images(
     text: str,

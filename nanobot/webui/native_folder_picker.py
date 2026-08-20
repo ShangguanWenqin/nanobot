@@ -54,6 +54,7 @@ _WINDOWS_GUI_ENV_KEYS = (
     "USERPROFILE",
 )
 
+# 原生目录选择仅是本机浏览器的便利入口；远程请求仍必须通过 workspace scope 的非升级校验。
 
 class NativeFolderPickerError(RuntimeError):
     """Raised when an available native folder picker cannot complete."""

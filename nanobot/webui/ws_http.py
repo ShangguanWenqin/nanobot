@@ -295,6 +295,7 @@ def _resolve_bootstrap_model_name(
 
 
 class GatewayHTTPHandler:
+    # 同一监听器把普通 HTTP 交给本类、把 Upgrade 留给 WebSocket channel；二者复用 token、settings 和会话服务。
     """Handles all HTTP routes served alongside the WebSocket endpoint.
 
     Routes HTTP requests and delegates stateful work to explicit gateway

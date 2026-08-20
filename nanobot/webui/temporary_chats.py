@@ -25,6 +25,7 @@ _TEMPORARY_CHAT_DISABLED_TOOLS = frozenset({
 })
 _TEMPORARY_CHAT_COMMANDS = frozenset({"/model", "/stop"})
 
+# 临时 chat 绑定单个已认证连接且不写 durable transcript；断连/显式丢弃时由此模块释放 session 和媒体。
 
 class TemporaryChatError(ValueError):
     """A stable WebUI protocol error for a Temporary Chat operation."""

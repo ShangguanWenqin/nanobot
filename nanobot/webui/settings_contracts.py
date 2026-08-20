@@ -7,6 +7,7 @@ from typing import Any
 
 QueryParams = dict[str, list[str]]
 
+# HTTP 与 webui_request 先转换为同一无传输依赖的契约，mutation 路由据此复用验证和错误边界。
 
 @dataclass(frozen=True)
 class SettingsRequest:

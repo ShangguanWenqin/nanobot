@@ -98,6 +98,7 @@ def prepare_mcp_oauth_redirect_uri(redirect_uri: str) -> tuple[str, bool]:
 
 
 class McpOAuthManager:
+    # OAuth flow 仅在内存中存活并串行等待回调；完成后由 MCP runtime 重连和重载拥有配置生效。
     """Own short-lived browser flows while the gateway process is running."""
 
     def __init__(self) -> None:

@@ -13,6 +13,7 @@ from nanobot.security.workspace_policy import WorkspaceBoundaryError, resolve_al
 
 MAX_FILE_PREVIEW_BYTES = 384 * 1024
 
+# 预览沿用会话的 WorkspaceScope；它不是绕过工作区限制读取任意本地文件的接口。
 
 class WebUIFilePreviewError(ValueError):
     """Raised when a file cannot be previewed through the WebUI."""

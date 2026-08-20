@@ -71,6 +71,7 @@ _NATIVE_RESTART_BEHAVIOR_BY_SECTION = {
     "apps": "engineRestart",
 }
 
+# facade 只保持旧 HTTP/Python 接缝；配置写入、动态应用和“必须重启”的决定分别由各 settings domain 返回。
 
 def _load_settings_config(config_path: Path | None) -> Config:
     return load_config(config_path) if config_path is not None else load_config()

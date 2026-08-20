@@ -27,6 +27,7 @@ AttachmentIngressResult = tuple[list[str], AttachmentRejection | None]
 _MAX_VIDEOS_PER_MESSAGE = 1
 _MAX_VIDEO_BYTES = 20 * 1024 * 1024
 
+# 上传内容先在协议边界按 MIME、数量和总大小筛选，后续持久化失败或整批失效时由本模块回收已写文件。
 _IMAGE_MIME_ALLOWED: frozenset[str] = frozenset({
     "image/png",
     "image/jpeg",

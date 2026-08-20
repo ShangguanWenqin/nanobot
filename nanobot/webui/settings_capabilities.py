@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
 SettingsOperation = Callable[..., dict[str, Any]]
 
+# 能力设置可改变运行时，但 handler 必须把可热应用与需要 engine/app 重启的结果明确回传给调用方。
 
 @dataclass(frozen=True)
 class CapabilitySettingsOperations:

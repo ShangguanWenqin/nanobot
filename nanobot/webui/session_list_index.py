@@ -61,6 +61,7 @@ _WEBUI_CHAT_ID_RE = re.compile(r"^[A-Za-z0-9_:-]{1,64}$")
 _TRANSCRIPT_SEGMENTS_SUFFIX = ".segments"
 _TRANSCRIPT_NON_ANSWER_KINDS = {"progress", "reasoning", "tool_hint"}
 
+# 侧栏索引是可从 session 与 transcript 重建的缓存，文件锁把扫描与重写限定在同一个一致性窗口。
 
 def list_webui_sessions(session_manager: SessionManager) -> list[dict[str, Any]]:
     """Return session rows for the WebUI sidebar, backed by a rebuildable cache."""

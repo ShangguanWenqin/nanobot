@@ -29,6 +29,7 @@ def _default_media_dir(channel: str | None) -> Path:
 
 
 class WebUIMediaGateway:
+    # HTTP 下载、WS 上传和 transcript 回放共用这一签名器，避免三条路径各自放宽媒体访问范围。
     """Own media URL signing and WebUI markdown/media augmentation."""
 
     def __init__(

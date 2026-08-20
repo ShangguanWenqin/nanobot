@@ -8,6 +8,7 @@ from websockets.exceptions import ConnectionClosed, InvalidMessage
 
 OPENING_HANDSHAKE_FAILED_MESSAGE = "opening handshake failed"
 
+# 只压低对端中断或探测造成的握手噪声，真实服务端握手错误仍保留，避免安全问题被静默。
 # Exceptions that mean the browser hung up mid-handshake (e.g. a restart races an
 # open tab) rather than a server fault.
 _DISCONNECT_TYPES: tuple[type[BaseException], ...] = (
