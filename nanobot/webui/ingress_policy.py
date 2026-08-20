@@ -67,5 +67,5 @@ class WebUIIngressPolicy:
         )
 
 
-# 语义配额独立于 WebSocket 原始帧上限，使 HTTP/WS 入口对同一消息作出一致拒绝决定。
+# 语义配额在解码后的 WebSocket 信封执行；HTTP bootstrap 只下发限制，不能把它误作同一消息入口。
 DEFAULT_WEBUI_INGRESS_POLICY = WebUIIngressPolicy()

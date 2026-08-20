@@ -33,7 +33,7 @@ from nanobot.webui.http_utils import (
 MediaDirProvider = Callable[[str | None], Path]
 SignedMediaPath = Callable[[Path], dict[str, str] | None]
 
-# 文件路径不会直接暴露给浏览器；签名载荷把可访问范围和短期授权绑定在同一媒体 URL 中。
+# 文件路径不会直接暴露给浏览器；HMAC 绑定可访问范围，其有效期依赖 Gateway 进程内 secret 的生命周期。
 
 def b64url_encode(data: bytes) -> str:
     """URL-safe base64 without padding."""

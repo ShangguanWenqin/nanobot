@@ -11,3 +11,8 @@
 - Python 源码 diff：仅新增中文 `#` 注释，无内容行新增或删除。
 - `git diff --check`：通过。
 - 按任务要求，未运行测试、类型检查或构建。
+
+## Fix round 1
+
+- 修正可信代理判断：只要求来源在可信 CIDR 且服务端配置断言 header，不要求 header 值匹配。
+- 修正 ingress、媒体和 settings 路由注释，明确 bootstrap 仅下发限制、媒体 URL 时效随进程内 secret、REST mutation 返回 405 而认证 WS 请求才进入 mutation 路由。
