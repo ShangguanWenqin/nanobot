@@ -412,7 +412,7 @@ class MemoryStore:
         unified_session: bool = False,
     ) -> list[dict[str, Any]]:
         """Return unprocessed history entries safe to inject into a turn prompt."""
-        # 自动化与 Dream 内部记录不应作为用户对话事实重新喂给模型，避免历史污染。
+        # 无 session 筛选时保留全部记录；统一跨会话路径才滤除内部 session，避免历史污染。
         entries = self.read_unprocessed_history(since_cursor=since_cursor)
         if session_key is None:
             return entries

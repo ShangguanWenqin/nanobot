@@ -39,7 +39,7 @@ class TriggerDisabledError(TriggerStoreError):
 
 
 class LocalTriggerStore:
-    # 触发器定义、待投递文件与运行记录都由本 store 统一加锁和原子落盘。
+    # 触发器定义和投递队列由本 store 加锁并原子落盘；运行记录各自逐文件原子写。
     """Persistent local triggers for one workspace."""
 
     def __init__(self, workspace_path: Path):

@@ -66,7 +66,7 @@ TITLE_MAX_CHARS = 60
 TITLE_GENERATION_MAX_TOKENS = 96
 TITLE_GENERATION_REASONING_EFFORT = "none"
 
-# 每 chat 的最新活动 turn 仅是进程内投影；刷新浏览器可继续观察，进程重启则由持久 Session 重建。
+# 每 chat 的最新活动 turn 仅是进程内投影；重启即丢弃，之后只由新的 running 事件重新登记。
 # Latest active turn projection per ``chat_id`` (websocket only). It survives browser refresh
 # while the gateway process stays up and is implicitly dropped on restart.
 _WEBSOCKET_TURN_WALL_STARTED_AT: dict[str, float] = {}
