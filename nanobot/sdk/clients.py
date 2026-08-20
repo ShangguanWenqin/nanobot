@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from nanobot.agent.loop import AgentLoop
 
 
+# SDK client 是对现有 loop 所有者的窄适配，不能绕过 SessionManager 的持久化规则。
 class SessionClient:
     """Session management helpers exposed through ``bot.sessions``."""
 

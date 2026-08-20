@@ -428,6 +428,7 @@ class ToolsConfig(Base):
     ssrf_whitelist: list[str] = Field(default_factory=list)  # CIDR ranges to exempt from SSRF blocking (e.g. ["100.64.0.0/10"] for Tailscale)
 
 
+# 根 schema 同时承接 JSON 的 camelCase 别名和运行时解析；具体 Provider/Tool 构造不属于此层。
 class Config(BaseSettings):
     """Root configuration for nanobot."""
 

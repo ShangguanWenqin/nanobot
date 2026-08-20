@@ -65,6 +65,7 @@ __all__ = [
 ]
 
 
+# SDK 门面统一配置装配和 MCP 连接边界，调用者不需要直接管理 AgentLoop 的内部部件。
 class Nanobot:
     """Programmatic facade for running the nanobot agent.
 

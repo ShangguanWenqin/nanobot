@@ -6,6 +6,7 @@ import logging
 from loguru import logger
 
 
+# 日志桥只转换记录格式和来源，级别过滤仍由宿主的 loguru 配置统一控制。
 class _LoguruBridge(logging.Handler):
     """Route stdlib log records into loguru with consistent formatting."""
 

@@ -8,6 +8,7 @@ from typing import Any, cast
 
 
 @dataclass
+# 用量查询是 /status 的只读适配；缺少 Provider API 时明确返回不支持而不模拟计数。
 class SearchUsageInfo:
     """Structured usage info returned by a provider fetcher."""
 
@@ -177,3 +178,4 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
+# 数值归一化保留 None，调用方可据此区分“未知用量”与真实的零值。

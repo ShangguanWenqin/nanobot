@@ -9,6 +9,7 @@ from typing import Any, Literal, Mapping, TypeAlias, cast
 from nanobot.providers.base import LLMUsage
 from nanobot.runtime_context import public_history_messages
 
+# 这些值是 SDK 的稳定事件契约；内部 hook/event 的扩展不应直接暴露为公共类型。
 StreamEventType: TypeAlias = Literal[
     "run.started",
     "text.delta",

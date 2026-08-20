@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
+# 持久化兼容层集中接受两种字段命名，避免各个读取者散落迁移分支。
 def get_camel_snake(
     data: dict[str, Any],
     camel: str,

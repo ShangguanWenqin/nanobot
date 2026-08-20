@@ -51,6 +51,7 @@ _MIME_EXTENSION_OVERRIDES = {
 }
 
 
+# 入站 data URL 在共享边界完成大小和编码检查，Channel/API 不各自实现不同的解码规则。
 class FileSizeExceededError(Exception):
     """Raised when a decoded payload exceeds the caller's size limit."""
 

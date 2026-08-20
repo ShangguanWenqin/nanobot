@@ -77,6 +77,7 @@ def _launch_browser(url: str) -> bool:
     return bool(webbrowser.open(url, new=2, autoraise=True))
 
 
+# 此处集中 WebUI 启动前的本地安全检查和引导，不承担 HTTP/WS 协议处理。
 def _confirm_webui_action(message: str, *, yes: bool) -> None:
     """Confirm a WebUI first-run mutation or fail clearly in non-interactive shells."""
     if yes:

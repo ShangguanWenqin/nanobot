@@ -13,6 +13,7 @@ from nanobot.process_runtime import (
     ProcessStartOptions,
 )
 
+# API 进程沿用通用进程生命周期；本模块只提供 API 实例的命令与隔离路径。
 
 @dataclass(frozen=True)
 class ApiStartOptions(ProcessStartOptions):

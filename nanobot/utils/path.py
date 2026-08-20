@@ -7,6 +7,7 @@ import re
 from urllib.parse import urlparse
 
 
+# 仅用于人类可读展示；不要把缩写后的路径回传给 filesystem 工具作为真实定位依据。
 def abbreviate_path(path: str, max_len: int = 40) -> str:
     """Abbreviate a file path or URL, preserving basename and key directories.
 

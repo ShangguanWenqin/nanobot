@@ -39,8 +39,9 @@ git ls-files \
 | B3 | 已完成 | 24 / 24 | 99 | Python 非注释 token 24 / 24 等价；无 Python 内容行新增或删除 |
 | B4 | 已完成 | 61 / 61 | 90 | Python 非注释 token 61 / 61 等价；无 Python 内容行新增或删除 |
 | B5 | 已完成 | 24 / 24 | 76 | Python 非注释 token 24 / 24 等价；无 Python 内容行新增或删除 |
+| B6 | 已完成 | 57 / 57 | 58 | Python 非注释 token 57 / 57 等价；无 Python 内容行新增或删除 |
 
-当前完成 5 / 9 个批次、165 / 412 个 `include` 文件；其余 247 个 `include` 文件保持待处理。
+当前完成 6 / 9 个批次、222 / 412 个 `include` 文件；其余 190 个 `include` 文件保持待处理。
 
 ## 3. 批次定义
 

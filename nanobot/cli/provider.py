@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 console = Console()
 provider_app = typer.Typer(help="Manage providers")
 
+# OAuth CLI 在此适配可选依赖，令 Provider registry 保持为后端能力的唯一来源。
 _PROVIDER_DISPLAY: dict[str, str] = {
     "openai_codex": "OpenAI Codex",
     "xai_grok": "xAI Grok",

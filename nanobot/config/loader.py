@@ -17,6 +17,7 @@ from nanobot.config.schema import (
 from nanobot.utils.helpers import _write_text_atomic  # pyright: ignore[reportPrivateUsage]
 
 # Global variable to store current config path (for multi-instance support)
+# 当前路径是实例级运行数据的根；切换它不会变更已构造 Config 的字段值。
 _current_config_path: Path | None = None
 _schema_refs_ready = False
 

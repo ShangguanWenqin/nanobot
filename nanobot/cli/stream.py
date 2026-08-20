@@ -19,6 +19,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 
+# 渲染器消费已规范化的流事件，只拥有终端表现，不改变 AgentRunner 的流式协议。
 def _clear_current_line(console: Console) -> None:
     """Erase a transient status line before printing persistent output."""
     file = console.file

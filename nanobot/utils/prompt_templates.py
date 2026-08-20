@@ -11,6 +11,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
+# 共享 Jinja 环境只负责模板渲染；各调用者决定何时将文本放入系统提示词。
 _TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "templates"
 
 

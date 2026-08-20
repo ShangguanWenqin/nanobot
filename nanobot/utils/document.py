@@ -22,6 +22,7 @@ _MAX_PDF_CONTENT_STREAM_SIZE = 32 * 1024 * 1024  # 32 MB per page
 _MAX_PDF_ATTACHMENT_PAGES = 100
 
 
+# 文档提取在共享层施加大小与归档安全边界，具体工具只消费受限文本结果。
 class _TextCollector:
     """Build bounded parser output without retaining the full document text."""
 

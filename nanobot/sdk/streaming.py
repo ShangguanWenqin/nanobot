@@ -23,6 +23,7 @@ from nanobot.sdk.types import (
 _STREAM_SENTINEL = object()
 
 
+# RunStream 将单次 turn 的 hook 事件转成单消费者队列，并负责提前退出时取消该 turn。
 class RunStream:
     """A running SDK turn with Cursor/OpenAI-style event streaming."""
 

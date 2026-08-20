@@ -2,6 +2,7 @@
 nanobot - A lightweight AI agent framework
 """
 
+# 包级懒导出把 SDK 公共入口与其实现的导入时机分开，避免启动阶段形成循环依赖。
 import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version

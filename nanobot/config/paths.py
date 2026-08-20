@@ -7,6 +7,7 @@ from pathlib import Path
 from nanobot.utils.helpers import ensure_dir
 
 
+# 路径函数按调用时的 loader 状态解析，避免导入阶段把多实例配置固定为默认位置。
 def get_config_path() -> Path:
     """Get the configuration file path (lazy import to break circular dependency).
 

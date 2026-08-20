@@ -48,6 +48,7 @@ class InstallResult:
     output: str = ""
 
 
+# 可选能力层负责依赖与配置开关的适配；已启动进程是否重载由调用者按重启策略处理。
 _INSTALL_TIMEOUT_SECONDS = 300
 _LOG_OUTPUT_LIMIT = 4000
 _HIDDEN_OPTIONAL_FEATURES = {"documents", "pdf"}

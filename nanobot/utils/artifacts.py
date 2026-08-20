@@ -22,6 +22,7 @@ _MIME_EXTENSIONS = {
     "image/gif": ".gif",
 }
 
+# 生成媒体先在此验证并限制为 media 根目录内的副产物，Provider 不直接写入运行时存储。
 class ArtifactError(ValueError):
     """Raised when an artifact cannot be safely decoded or stored."""
 

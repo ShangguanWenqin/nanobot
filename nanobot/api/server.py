@@ -46,6 +46,7 @@ __all__ = (
 
 API_SESSION_KEY = "api:default"
 API_CHAT_ID = "default"
+# HTTP 兼容层把请求收敛到固定会话，串行锁由该边界维护，AgentLoop 仍拥有实际 turn 生命周期。
 _AGENT_LOOP_KEY = web.AppKey[Any]("agent_loop")
 _MODEL_NAME_KEY = web.AppKey[str]("model_name")
 _REQUEST_TIMEOUT_KEY = web.AppKey[float]("request_timeout")

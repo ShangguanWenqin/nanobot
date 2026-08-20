@@ -7,6 +7,7 @@ from pathlib import Path
 
 from nanobot.utils.helpers import truncate_text
 
+# 工作区覆盖文件只替换对应提示文本；agent workspace、会话和安全 scope 的所有权不随之变化。
 WORKSPACE_PROMPT_MAX_CHARS = 32_000
 
 

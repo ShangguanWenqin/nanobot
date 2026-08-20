@@ -41,6 +41,7 @@ CommandLifecycle = Literal[
 USER_SHELL_COMMAND = "/__shell"
 
 
+# 内建命令在路由边界声明 UI 生命周期，具体会话持久化仍由 AgentLoop/SessionManager 所有。
 @dataclass(frozen=True)
 class BuiltinCommandSpec:
     command: str

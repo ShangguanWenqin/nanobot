@@ -29,6 +29,7 @@ class _LazyModuleAlias(ModuleType):
         return sorted(set(super().__dir__()) | set(dir(self._load())))
 
 
+# 延迟别名仅维持旧导入路径，目标模块仍保有其运行时状态和实现责任。
 _LEGACY_MODULE_ALIASES = {
     "webui_thread_disk": "nanobot.webui.thread_disk",
     "webui_transcript": "nanobot.webui.transcript",

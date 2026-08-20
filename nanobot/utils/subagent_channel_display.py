@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # Cap the Result section so session previews stay readable; full text remains on
 # disk for LLM replay.
+# 面向外部 channel 的投影删除模型注入内容；完整公告仍保存在会话中供模型回放。
 _SUBAGENT_CHANNEL_RESULT_MAX_CHARS = 800
 
 

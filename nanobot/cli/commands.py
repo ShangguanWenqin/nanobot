@@ -92,6 +92,7 @@ app = typer.Typer(
 
 console = Console()
 
+# 此模块是 Typer 的组合根：各子命令只注册适配层，运行时装配和关闭委托给对应专用模块。
 def version_callback(value: bool):
     if value:
         console.print(f"{__logo__} nanobot v{__version__}")

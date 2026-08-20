@@ -51,6 +51,7 @@ def _classic_dependency(name: str) -> Any:
     return __getattr__(name)
 
 
+# 交互 CLI 负责终端显示、取消与资源关闭；构造出的 loop/MCP 仍按同一所有权顺序清理。
 def agent(
     message: str | None = typer.Option(None, "--message", "-m", help="Message to send to the agent"),
     session_id: str | None = typer.Option(None, "--session", "-s", help="Session ID"),

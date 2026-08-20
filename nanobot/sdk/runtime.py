@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
+# SDK 参数在进入 AgentLoop 前规范化，避免公共接口把互斥模型选择传入内部运行时。
 def ensure_single_model_selector(
     *,
     model: str | None,

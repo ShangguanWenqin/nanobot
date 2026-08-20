@@ -22,6 +22,7 @@ from loguru import logger
 if TYPE_CHECKING:
     from nanobot.providers.base import LLMUsage
 
+# 通用文本和文件小工具集中在这里；缓存只服务 prompt/tool 估算，不改变 Provider 的 token 语义。
 _TOOLS_TOKEN_CACHE_MAX_ENTRIES = 64
 _TOOLS_TOKEN_CACHE: dict[int, tuple[tuple[int, ...], dict[bool, int]]] = {}
 _T = TypeVar("_T")

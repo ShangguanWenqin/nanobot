@@ -44,6 +44,7 @@ class CommitInfo:
         return f"{header}\n(no file changes)"
 
 
+# 记忆版本库独立于用户项目 Git；它只审计指定 memory 文件，不能推广为通用仓库操作器。
 class GitStore:
     """Git-backed version control for memory files."""
 

@@ -59,6 +59,7 @@ class _MCPReadinessHook(AgentHook):
         await self._provider.connect()
 
 
+# Gateway 组合根在这里拥有共享服务的启动与反向关闭顺序，内部子系统不互相代为释放资源。
 def _http_endpoint_responding(url: str, *, timeout_s: float = 0.25) -> bool:
     """Return whether an HTTP endpoint responds, including with an auth error."""
     import urllib.error

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+# 保留这组轻量兼容接口，使引导向导不依赖可选的模型目录实现。
 
 def get_all_models() -> list[str]:
     return []

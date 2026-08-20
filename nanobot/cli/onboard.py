@@ -36,6 +36,7 @@ from nanobot.providers.oauth_guidance import OAUTH_CLI_KIT_MISSING_MESSAGE
 
 console = Console()
 
+# 向导只编辑和校验配置 DTO；Provider/Channel 的实际连接仍由各自运行时负责。
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 

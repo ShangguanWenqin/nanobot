@@ -45,6 +45,7 @@ def _resolved_config_selector(config: str | None) -> Path:
     return get_config_path().resolve(strict=False)
 
 
+# 后台控制命令只生成实例级进程配置；前台 async 生命周期由 gateway_runtime 独占。
 def create_gateway_app(
     *,
     console: Console,

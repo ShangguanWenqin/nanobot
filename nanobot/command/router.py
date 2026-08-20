@@ -64,6 +64,7 @@ class CommandRouter:
       3. *prefix* — longest-prefix-first match (e.g. "/team ").
     """
 
+    # 路由表只决定命令匹配和优先级，不执行模型调用或直接修改持久化会话。
     def __init__(self) -> None:
         self._priority: dict[str, Handler] = {}
         self._exact: dict[str, Handler] = {}

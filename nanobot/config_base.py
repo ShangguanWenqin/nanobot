@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 
+# 共享 DTO 基类统一别名规则，使文件配置、API 载荷与 Python 属性可以并存。
 class Base(BaseModel):
     """Base model that accepts both camelCase and snake_case keys."""
 

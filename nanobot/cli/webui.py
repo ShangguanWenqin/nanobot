@@ -48,6 +48,7 @@ from nanobot.webui.dev import (
 console = Console()
 
 
+# WebUI 命令协调首次配置与浏览器入口；Gateway 仍是唯一的后端服务组合根。
 def _wait_with_existing_foreground_gateway(
     gateway_host: str,
     gateway_port: int,

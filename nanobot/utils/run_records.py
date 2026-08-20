@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
+# 自动化审计记录采用原子替换与目录 fsync；调度状态本身仍由 cron/trigger 服务所有。
 def safe_run_record_name(run_id: str) -> str:
     """Return a filesystem-safe filename stem for a run ID."""
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in run_id)

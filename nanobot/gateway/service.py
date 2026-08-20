@@ -41,6 +41,7 @@ class GatewayServiceResult:
     content: str | None = None
 
 
+# 服务安装器渲染操作系统声明并调用其管理器，不接管 Gateway 内部的 async 关闭流程。
 class GatewayServiceInstaller:
     """Render and install systemd user services or macOS LaunchAgents."""
 

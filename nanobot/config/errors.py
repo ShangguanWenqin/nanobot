@@ -17,6 +17,7 @@ ConfigErrorKind = Literal[
     "io_error",
 ]
 ConfigPathPart = str | int
+# 配置错误可能含用户输入；仅允许安全路径片段进入面向用户的诊断文本。
 _SAFE_LOCATION_PART = re.compile(r"[A-Za-z_][A-Za-z0-9_-]{0,63}")
 
 

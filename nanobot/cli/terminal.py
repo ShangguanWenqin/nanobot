@@ -31,6 +31,7 @@ from nanobot.bus.outbound_events import (
 from nanobot.cli.stream import StreamRenderer, ThinkingSpinner
 from nanobot.utils.helpers import sanitize_surrogates as _sanitize_surrogates
 
+# 交互终端封装 TTY 与显示细节，避免把平台输入状态泄露进会话和 AgentLoop。
 __all__ = [
     "_ReasoningBuffer",
     "_ensure_interactive_tty_mode",

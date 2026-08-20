@@ -26,6 +26,7 @@ __all__ = [
 console = Console()
 
 
+# 统一把配置加载错误转换为终端诊断，命令实现无需各自处理 schema 与环境变量细节。
 def _model_display(config: Config) -> tuple[str, str]:
     """Return (resolved_model_name, preset_tag) for display strings."""
     resolved = config.resolve_preset()

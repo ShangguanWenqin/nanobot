@@ -9,6 +9,7 @@ from typing import Any, cast
 from nanobot.agent.hook import AgentHookContext
 
 
+# 通过回调签名适配旧进度消费者，事件生产者无需依赖任何 UI 或 channel 实现。
 def on_progress_accepts_tool_events(cb: Callable[..., Any]) -> bool:
     return _on_progress_accepts(cb, "tool_events")
 

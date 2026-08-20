@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from nanobot.providers.base import LLMProvider
 
 # Cap for a workspace-local heartbeat evaluator prompt override.
+# 评估器可被 heartbeat 复用；此处只决定提示词和通知判定，不编排后台 turn。
 EVALUATOR_PROMPT_MAX_CHARS = WORKSPACE_PROMPT_MAX_CHARS
 
 

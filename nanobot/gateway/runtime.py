@@ -104,6 +104,7 @@ class GatewayAlreadyRunningError(RuntimeError):
         self.status = status
 
 
+# 此命令是给进程监督者的可重建身份；实际 Gateway 对象只在子进程前台创建。
 def build_gateway_command(python_executable: str, options: GatewayStartOptions) -> list[str]:
     """Build a foreground gateway command for process supervisors."""
     command = [

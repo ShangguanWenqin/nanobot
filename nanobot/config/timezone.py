@@ -9,6 +9,7 @@ _UTC_ALIASES = frozenset(
 )
 
 
+# 自动默认值必须是可被 ZoneInfo 重新解析的 IANA 名称，失败时回退 UTC 保持可移植性。
 def detect_system_timezone() -> str:
     """Return the host's IANA timezone, falling back safely to UTC."""
     try:

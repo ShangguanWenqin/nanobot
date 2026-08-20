@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+# 冻结的运行时快照把本 turn 的模型选择与可变 Provider 默认值隔离开。
 class LLMRuntime:
     """One captured provider/model configuration used for an entire execution.
 
