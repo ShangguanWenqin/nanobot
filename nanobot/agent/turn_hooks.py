@@ -20,7 +20,7 @@ from nanobot.agent.progress_hook import AgentProgressHook
 
 @dataclass(slots=True)
 class AgentTurnHookSpec:
-    # 这是 Loop 向 Runner hook 链传递的一次性装配输入，不是跨 turn 的持久状态。
+    # 这是 AgentLoop 向 AgentRunner hook 链传递的一次性装配输入，不是跨 turn 的持久状态。
     """Inputs needed to build the hook chain for one agent turn."""
 
     on_progress: Callable[..., Awaitable[None]] | None = None

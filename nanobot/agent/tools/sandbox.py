@@ -117,7 +117,7 @@ def wrap_command(
     sandbox_rw_binds: Iterable[str] | None = None,
 ) -> str:
     """Wrap *command* using the named sandbox backend."""
-    # 当前只注册 bwrap；平台缺失/Windows 降级由 Shell 层显式处理，不能宣称已有系统沙箱。
+    # 当前只注册 bwrap：Windows 由 Shell 层绕过包装并无沙箱运行，非 Windows 缺少可执行文件则命令失败。
     if backend := _BACKENDS.get(sandbox):
         return backend(
             command,

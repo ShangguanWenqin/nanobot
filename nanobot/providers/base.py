@@ -186,7 +186,7 @@ class ProviderConversationState:
         messages: list[dict[str, Any]],
     ) -> ProviderConversationState:
         """Return a state copy with an isolated pending-message list."""
-        # 状态可跨 turn 持久化，待补送消息必须深拷贝，不能与 runner 的可变 history 共享引用。
+        # 状态可跨 turn 持久化，待补送消息必须深拷贝，不能与 AgentRunner 的可变 history 共享引用。
         return ProviderConversationState(
             kind=self.kind,
             provider=self.provider,

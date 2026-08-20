@@ -155,7 +155,7 @@ class ToolResult(str):
 
     @classmethod
     def error(cls, content: str) -> ToolResult:
-        # 错误状态不能再靠 "Error:" 文本猜测；Runner 以 is_error 决定 hook 与恢复策略。
+        # 错误状态不能再靠 "Error:" 文本猜测；AgentRunner 以 is_error 决定 hook 与恢复策略。
         return cls(content, is_error=True)
 
 
@@ -197,7 +197,7 @@ class Tool(ABC):
     @property
     def concurrency_safe(self) -> bool:
         """Whether this tool can run alongside other concurrency-safe tools."""
-        # Runner 只并发连续的安全工具；副作用工具默认形成顺序屏障。
+        # AgentRunner 只并发连续的安全工具；副作用工具默认形成顺序屏障。
         return self.read_only and not self.exclusive
 
     @property

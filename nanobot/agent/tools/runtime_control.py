@@ -158,7 +158,7 @@ class AgentRuntimeControl:
         self.__workspace_display: str | None = None
 
     def snapshot(self) -> RuntimeSnapshot:
-        # 所有集合都复制为普通值，调用方修改快照不会反向修改 Loop 内部状态。
+        # 所有集合都复制为普通值，调用方修改快照不会反向修改 AgentLoop 内部状态。
         target = self.__target
         return RuntimeSnapshot(
             model=target.model,

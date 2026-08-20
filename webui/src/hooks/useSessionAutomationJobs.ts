@@ -1,4 +1,4 @@
-// 会话自动化仅在面板打开时定时刷新，并用 request 顺序避免旧响应覆盖新会话。
+// 面板打开且页面可见时才刷新；effect 的 cancelled 拦截旧会话响应，refreshing 阻止定时器与聚焦请求重叠。
 import { useEffect, useRef, useState } from "react";
 
 import { usePageVisibility } from "@/hooks/usePageVisibility";

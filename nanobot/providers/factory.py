@@ -392,7 +392,7 @@ def build_provider_snapshot(
         fallback.context_window_tokens
         for fallback in _resolve_fallback_presets(config, resolved)
     ]
-    # runner 必须按链中最小窗口治理上下文，因为实际执行模型可能已经发生回退。
+    # AgentRunner 必须按链中最小窗口治理上下文，因为实际执行模型可能已经发生回退。
     return ProviderSnapshot(
         provider=make_provider(config, preset=resolved),
         model=resolved.model,

@@ -1,4 +1,4 @@
-// 语言资源按已注册渠道按需加载；缺少某语言时由公共 i18n 回退链接管。
+// 语言资源按已注册渠道按需加载；某渠道缺少目标语言时，本 registry 显式回退其 en loader。
 import type { ChannelMessages } from "@/channel-plugins/i18n";
 import { channelNamespace } from "@/channel-plugins/i18n";
 import {

@@ -118,7 +118,7 @@ _SUBAGENT_PROVIDER_TASK_META = "subagent_provider_task_id"
 _SUBAGENT_TERMINAL_WAIT_SECONDS = 300.0
 
 
-# AgentLoop 在消息总线与 Runner 之间拥有 turn 编排，阶段状态集中存放在 TurnContext。
+# AgentLoop 在消息总线与 AgentRunner 之间拥有 turn 编排，阶段状态集中存放在 TurnContext。
 class TurnKind(Enum):
     USER = auto()
     SYSTEM = auto()
@@ -378,7 +378,7 @@ class AgentLoop:
         self._extra_hooks: list[AgentHook] = hooks or []
         self._hook_factories: list[AgentTurnHookFactory] = hook_factories or []
 
-        # Loop 在 turn 内协调 context/session/runner/subagent；外部注入的 ToolRegistry 仍由组合根共享。
+        # AgentLoop 在 turn 内协调 context/session/AgentRunner/subagent；外部注入的 ToolRegistry 仍由组合根共享。
         self.context = ContextBuilder(workspace, timezone=timezone, disabled_skills=disabled_skills)
         self.sessions = session_manager or SessionManager(workspace)
         # One file-read/write tracker per logical session. The tool registry is
@@ -1321,7 +1321,7 @@ class AgentLoop:
                 # If this session already has an active pending queue (i.e. a task
                 # is processing this session), route the message there for mid-turn
                 # injection instead of creating a competing task.
-                # 活跃会话的新输入进入 runner injection 队列，避免与当前 turn 争抢同一 Session 历史。
+                # 活跃会话的新输入进入 AgentRunner injection 队列，避免与当前 turn 争抢同一 Session 历史。
                 if effective_key in self._pending_queues:
                     # Non-priority commands must not be queued for injection;
                     # dispatch them directly (same pattern as priority commands).

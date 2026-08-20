@@ -81,7 +81,6 @@ _MAX_INJECTIONS_PER_TURN = 3
 _MAX_INJECTION_CYCLES = 5
 
 
-# Runner 只拥有一次模型/工具多轮执行，不读取或写入 Session；持久化和最终交付由 AgentLoop 完成。
 def _restore_outer_whitespace(content: str, original: str | None) -> str:
     """Restore boundary whitespace stripped while cleaning one recovered segment."""
     if not original:
@@ -139,6 +138,7 @@ class AgentRunResult:
     provider_state: ProviderConversationState | None = field(default=None, repr=False)
 
 
+# AgentRunner 只拥有一次模型/工具多轮执行，不读取或写入 Session；持久化和最终交付由 AgentLoop 完成。
 class AgentRunner:
     """Run a tool-capable LLM loop without product-layer concerns."""
 
@@ -492,7 +492,7 @@ class AgentRunner:
         injection_cycles = 0
         compacted_tool_call_ids: set[str] = set()
         pending_stream_content: str | None = None
-        # controller 统一管理不同 provider 的 continuation 候选，runner 不直接解释 opaque state。
+        # controller 统一管理不同 provider 的 continuation 候选，AgentRunner 不直接解释 opaque state。
         conversation_state = ProviderConversationStateController(
             provider=spec.runtime.provider,
             model=spec.runtime.model,
@@ -634,7 +634,7 @@ class AgentRunner:
                     if response.provider_state is not None
                     else None
                 )
-                # tools_completed checkpoint 同时携带可续接 provider state，Loop 决定其何时原子写入 Session。
+                # tools_completed checkpoint 同时携带可续接 provider state，AgentLoop 决定其何时原子写入 Session。
                 await self._emit_checkpoint(
                     spec,
                     {

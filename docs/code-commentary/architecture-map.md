@@ -1,6 +1,6 @@
 # nanobot 运行时认知地图
 
-本文是中文代码注释工程的共同认知基线。结论来自当前源码中的入口、构造、导入、协议类型和调用链；`docs/architecture.md`、`.agent/design.md`、`.agent/security.md` 与 `.agent/gotchas.md` 只用于校验意图，不替代源码证据。覆盖范围与后续批次见 [`coverage.md`](coverage.md)。
+本文是中文代码注释工程的共同认知基线。结论来自当前源码中的入口、构造、导入、协议类型和调用链；`docs/architecture.md`、`.agent/design.md`、`.agent/security.md` 与 `.agent/gotchas.md` 只用于校验意图，不替代源码证据。覆盖范围与批次审计见 [`coverage.md`](coverage.md)。
 
 ## 1. 组合根与生命周期
 
@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | 模块/CLI | `nanobot/__main__.py` 调用 `nanobot.cli.commands.app`；`serve` 在 `nanobot/cli/commands.py` 中加载配置，构造 `MessageBus`、`SessionManager`、`ToolRegistry`、`MCPProvider` 和 `AgentLoop.from_config`，再挂载 aiohttp OpenAI 兼容 API | 应用启动时连接 MCP；aiohttp cleanup 先 `AgentLoop.aclose()`，后 `MCPProvider.aclose()` | `nanobot/__main__.py`、`nanobot/cli/commands.py`、`nanobot/api/server.py` |
 | 交互 CLI | 命令注册在 `nanobot/cli/agent.py`；一次性和交互模式最终都通过 SDK/AgentLoop 处理消息 | 终端流式输出和取消由 CLI 层拥有，不改变 Agent 核心所有权 | `nanobot/cli/agent.py`、`nanobot/cli/stream.py`、`nanobot/cli/terminal.py` |
-| Python SDK | `Nanobot.from_config` 解析配置与环境，构造 `ToolRegistry`、`MCPProvider`、`AgentLoop`；`run`/`run_streamed` 懒连接 MCP 后调用 `process_direct` | `RunStream` 把结构化事件放入队列；`Nanobot.aclose` 先关闭 loop，再关闭 MCP | `nanobot/nanobot.py`、`nanobot/sdk/runtime.py`、`nanobot/sdk/types.py` |
+| Python SDK | `Nanobot.from_config` 解析配置与环境，构造 `ToolRegistry`、`MCPProvider`、`AgentLoop`；`run`/`run_streamed` 懒连接 MCP 后调用 `process_direct` | `RunStream` 把结构化事件放入队列；`Nanobot.aclose` 先关闭 `AgentLoop`，再关闭 MCP | `nanobot/nanobot.py`、`nanobot/sdk/runtime.py`、`nanobot/sdk/types.py` |
 | Gateway | `_run_gateway` 构造总线、运行时事件总线、Provider 快照、Session、Cron、Trigger、Delivery、Tools/MCP、AgentLoop、WebuiTurnCoordinator、ChannelManager | 启动 cron/MCP/agent/channels/trigger/health/config watcher；退出先停 Channel，再取消运行任务，随后关闭 Agent/MCP、`SessionManager.flush_all()` | `nanobot/cli/gateway_runtime.py`、`nanobot/channels/manager.py` |
 | OpenAI API | `serve` 挂载 `/v1/chat/completions`、`/v1/models`；每个 API session 有锁，聊天调用 `AgentLoop.process_direct`，SSE 转换流事件 | 非 loopback 绑定必须有 API key；API 会话使用固定 channel 语义且仍进入同一 Agent/Session 内核 | `nanobot/cli/commands.py`、`nanobot/api/server.py`、`nanobot/api/runtime.py` |
 | 外部 Channel | `ChannelManager` 通过 manifest/registry 发现启用的 channel，给每个实例注入同一个 `MessageBus`；WebSocket 额外接收 Gateway services | manager 启停适配器并独占 outbound dispatch；动态设置可增删 channel 实例 | `nanobot/channels/manager.py`、`nanobot/channels/registry.py`、`nanobot/channels/plugin.py` |
@@ -36,11 +36,11 @@ flowchart LR
   W --> C
 ```
 
-这里的边不是“目录关系”：构造顺序和注入参数可分别在 `nanobot/cli/gateway_runtime.py` 的 `_run_gateway`、`AgentLoop.from_config`、`ChannelManager(...)` 处核对。`MCPProvider` 由组合根拥有，不能因为 `AgentLoop` 引用了它就由 loop 重复关闭。
+这里的边不是“目录关系”：构造顺序和注入参数可分别在 `nanobot/cli/gateway_runtime.py` 的 `_run_gateway`、`AgentLoop.from_config`、`ChannelManager(...)` 处核对。`MCPProvider` 由组合根拥有，不能因为 `AgentLoop` 引用了它就由 `AgentLoop` 重复关闭。
 
 ### 1.3 运行与退出顺序
 
-1. `nanobot/cli/gateway_runtime.py` 先解析有效配置与 workspace，再生成不可变 Provider snapshot 和 session/runtime 服务。
+1. `nanobot/cli/gateway_runtime.py` 先解析有效配置与 workspace，再生成不可变 Provider snapshot 和 session/runtime 服务；配置路径指向配置文件本身，其 parent 才是实例运行数据根。
 2. `AgentLoop.from_config` 在 `nanobot/agent/loop.py` 中组装 provider、context、memory、runner、tools、hooks 和 workspace scope resolver。
 3. Cron 先完成启动；随后并发调度各运行任务，其中 agent 任务先连接 MCP 再进入 `AgentLoop.run()`，`ChannelManager.start_all()`、本地 trigger 队列、健康服务和配置 watcher 不等待 MCP 连接完成。
 4. 停止时先阻断新 channel 输入，再取消/限时等待运行任务；`AgentLoop.aclose()` 取消活跃 turn、后台任务、subagent 与 exec session；之后才关闭 MCP，并强制 flush session。
@@ -185,17 +185,17 @@ Python 发出的 WS 事件与 `webui/src/lib/types.ts` 的 `InboundEvent` 对齐
 | --- | --- | --- |
 | 路径约束 | `resolve_allowed_path` 对解析后的真实路径做 containment；额外单文件白名单还要求 logical path 与 resolved path 完全一致，防止符号链接借道。Workspace guard 是应用级策略，不等于 OS 沙箱 | `nanobot/security/workspace_policy.py`、`workspace_access.py`、`nanobot/agent/tools/filesystem.py`、`path_utils.py` |
 | SSRF | 仅 http/https；解析 DNS 后阻断 loopback/private/link-local/metadata/IPv4-mapped 地址；显式 CIDR 白名单例外；请求 transport 固定已验证 DNS，redirect 目标重验。可信远端代理 DNS 是单独信任边界 | `nanobot/security/network.py`、`nanobot/agent/tools/web.py`、`shell.py`、`mcp.py` |
-| Shell | restricted 模式先解析 cwd/绝对路径/转义与 URL，再施加 workspace guard；可选 Bubblewrap 才是系统级隔离，macOS/Windows 路径另有实现。不能把 `restrict_to_workspace` 注释成完整进程沙箱 | `nanobot/agent/tools/shell.py`、`sandbox.py`、`_windows_job.py`、`nanobot/security/workspace_access.py` |
+| Shell | restricted 模式先解析 cwd/绝对路径/转义与 URL，再施加 workspace guard；可选 Bubblewrap 才是系统级隔离。配置 sandbox 时，Windows 警告后无沙箱执行，非 Windows 缺少 bwrap 则包装命令执行失败；`restrict_to_workspace` 不能注释成完整进程沙箱 | `nanobot/agent/tools/shell.py`、`sandbox.py`、`_windows_job.py`、`nanobot/security/workspace_access.py` |
 | 配对 | `allowFrom` 精确匹配或 `*`，否则查询 pairing store；未授权 DM 只发短期 code，群聊直接拒绝。store 读取异常 fail closed，修改用锁和原子写；WebSocket 走握手鉴权而不是 DM pairing | `nanobot/channels/base.py`、`nanobot/pairing/store.py`、`nanobot/channels/websocket/runtime.py` |
 | 持久化 | Session JSONL 使用文件锁、临时文件 + `os.replace`，关键 flush fsync 文件/目录；workspace marker 防碰撞/符号链接。Memory history 原子重写并 fsync；pairing/config helpers 复用原子写 | `nanobot/session/manager.py`、`nanobot/agent/memory.py`、`nanobot/utils/helpers.py`、`nanobot/pairing/store.py` |
 | Provider 差异 | reasoning 字段、thinking 参数、token 字段、prompt cache、Responses continuation/compaction、model prefix 和 fallback 均是显式兼容策略 | `nanobot/providers/registry.py`、`factory.py`、各 provider 与 `openai_responses/*` |
 | Channel 协议限制 | BaseChannel 只定义最小契约；文本限长、平台 markdown、媒体下载/上传、ack/edit/rate limit 由适配器负责。WebSocket 另有 frame 上限、ping、chat/attachment/text ingress 限制 | `nanobot/channels/base.py`、各 `nanobot/channels/*/runtime.py`、`nanobot/channels/websocket/runtime.py`、`nanobot/webui/ingress_policy.py` |
 | WebUI 信任 | HTTP 与 WS 同端口但不同鉴权分支；只有 audience 为 `webui` 的连接能做 mutation。设置 mutation 不自动重试，且 chat allowlist 在异步边界后复核 | `nanobot/channels/websocket/runtime.py`、`nanobot/webui/ws_http.py`、`webui/src/lib/nanobot-client.ts` |
-| 跨平台进程 | PID 存活不等于目标进程身份；状态保存 PID/create-time/命令身份并用锁保护，Windows/Unix 信号与 job object 不同 | `nanobot/process_runtime.py`、`nanobot/agent/tools/exec_session.py`、`_windows_job.py` |
+| 跨平台进程 | PID 存活不等于目标进程身份；状态保存 PID、平台身份（Windows 创建时间、POSIX 进程组）及命令元数据，并用锁保护当前或先前实例的受管进程，Windows/Unix 信号与 job object 不同 | `nanobot/process_runtime.py`、`nanobot/agent/tools/exec_session.py`、`_windows_job.py` |
 
 ## 7. 中文注释批次依赖
 
-后续批次按 [`coverage.md`](coverage.md) 的唯一归属执行，跨批次依赖顺序如下：
+各批次按 [`coverage.md`](coverage.md) 的唯一归属执行，跨批次依赖顺序如下：
 
 1. **B1 核心代理与消息总线**先确定事件、turn 阶段和 runner 内环语义。
 2. **B2 工具、扩展与安全边界**依赖 B1 的 ContextVar、hook、checkpoint 与 delivery 契约。
@@ -208,3 +208,10 @@ Python 发出的 WS 事件与 `webui/src/lib/types.ts` 的 `InboundEvent` 对齐
 9. **B9 WebUI 对话、流式渲染与媒体**依赖 B1/B7 的 turn/event 语义。
 
 注释时若一个文件跨多个领域，以 `coverage.md` 的主批次为准，在注释中链接真实所有者；不要通过复制相邻模块说明来制造第二个“权威来源”。
+
+## 8. 最终术语与静态审计
+
+- 命名组件统一写作 `AgentLoop`、`AgentRunner`；泛指协议概念沿用 turn、session、runtime、workspace、provider、channel、tool，显式代码类型保留源码大小写。
+- 以原始分支基线 `6bf08edf` 比较最终工作树：261 个 Python `include` 文件在忽略 `COMMENT`、`NL`、`ENCODING` 和位置字段后，`(token_type, token_string)` 序列 261 / 261 等价。
+- 以 TypeScript 5.9.3 scanner 的 `skipTrivia=true` 比较同一基线：151 个 TS/TSX `include` 文件的 token kind 与原文 151 / 151 等价。
+- 412 个 `include` 文件最终仅新增 830 行中文行注释、删除 0 行源码；54 个 `exclude` 文件未变化。候选闭合、批次提交与逐文件结果记录在 [`coverage.md`](coverage.md)。

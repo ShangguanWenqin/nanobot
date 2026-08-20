@@ -42,7 +42,7 @@ class _ClientRuntime:
     receive_tasks: set[asyncio.Task[Any]] = field(default_factory=set)
 
 
-# SDK 把 loop 保存为模块全局，本 runner 把所有实例汇聚到独立线程的一条 loop，避免多 app 相互覆盖该全局状态。
+# 飞书 SDK 把 event loop 保存为模块全局，本 WebSocket 调度器把所有实例汇聚到独立线程的一条 event loop，避免多 app 相互覆盖该状态。
 class FeishuWsRunner:
     """Run multiple lark_oapi websocket clients on one dedicated event loop."""
 

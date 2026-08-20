@@ -70,7 +70,7 @@ class ProcessRuntimePaths:
 _StartOptionsT = TypeVar("_StartOptionsT", bound=ProcessStartOptions)
 
 
-# 通用运行时只验证并追踪其创建的子进程身份，具体服务命令和业务健康语义留给子类。
+# 通用运行时只管理状态文件中身份仍匹配的本次或先前受管进程；服务命令和业务健康语义留给子类。
 class ManagedProcessRuntime(Generic[_StartOptionsT]):
     """Manage a detached child process without service-specific policy."""
 

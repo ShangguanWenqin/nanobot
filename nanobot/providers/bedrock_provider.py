@@ -764,7 +764,7 @@ class BedrockProvider(LLMProvider):
         on_thinking_delta: Callable[[str], Awaitable[None]] | None = None,
         on_tool_call_delta: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> LLMResponse:
-        # Converse 目前只向 runner 公开正文 delta；完整 reasoning/tool call 在流尾按统一契约返回。
+        # Converse 目前只向 AgentRunner 公开正文 delta；完整 reasoning/tool call 在流尾按统一契约返回。
         _ = on_thinking_delta, on_tool_call_delta
         idle_timeout_s = resolve_stream_idle_timeout_s()
         content_parts: list[str] = []

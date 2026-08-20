@@ -131,7 +131,7 @@ async def maybe_continue_turn(ctx: TurnContext) -> bool:
     ctx.final_content = ""
     ctx.all_messages = messages
     ctx.suppress_response = True
-    # continuation 作为同一 session 的后续入站排队，仍经 loop 的锁和保存边界处理。
+    # continuation 作为同一 session 的后续入站排队，仍经 AgentLoop 的锁和保存边界处理。
     await ctx.pending_queue.put(
         dataclasses.replace(
             ctx.msg,

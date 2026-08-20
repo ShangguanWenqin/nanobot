@@ -1,4 +1,4 @@
-// 市场搜索与趋势数据可短暂陈旧，安装结果仍以服务端重新获取的目录为权威。
+// 市场搜索与趋势数据可短暂陈旧；安装成功直接传播服务端 mutation payload，并就地标记当前结果。
 import { useEffect, useMemo, useState } from "react";
 import {
   Check,

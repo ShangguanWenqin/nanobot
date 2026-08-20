@@ -192,7 +192,7 @@ class ToolRegistry:
     async def execute(self, name: str, params: Any) -> Any:
         """Execute a tool by name with given parameters."""
         hint = "\n\n[Analyze the error above and try a different approach.]"
-        # Runner 通常先 prepare 再直接执行工具；此入口为旧调用者保留完整的同等边界。
+        # AgentRunner 通常先 prepare 再直接执行工具；此入口为旧调用者保留完整的同等边界。
         tool, params, error = self.prepare_call(name, params)
         if error:
             return ToolResult.error(str(error) + hint)

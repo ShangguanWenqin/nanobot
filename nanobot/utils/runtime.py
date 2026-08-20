@@ -10,7 +10,7 @@ from loguru import logger
 
 from nanobot.utils.helpers import stringify_text_blocks
 
-# 这些恢复提示与重复错误节流为 runner 提供统一策略，不在此层驱动下一轮模型调用。
+# 这些恢复提示与重复错误节流为 AgentRunner 提供统一策略，不在此层驱动下一轮模型调用。
 _MAX_REPEAT_EXTERNAL_LOOKUPS = 2
 
 # Third same-target workspace violation in a turn escalates to "stop retrying".

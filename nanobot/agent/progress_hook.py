@@ -172,7 +172,7 @@ class AgentProgressHook(AgentHook):
                 tool_hint=True,
                 tool_events=tool_events,
             )
-        # 日志只截取参数预览，完整参数仍由 runner/tool 边界持有。
+        # 日志只截取参数预览，完整参数仍由 AgentRunner/tool 边界持有。
         for tc in context.tool_calls:
             args_str = json.dumps(tc.arguments, ensure_ascii=False)
             logger.info("Tool call: {}({})", tc.name, args_str[:200])
