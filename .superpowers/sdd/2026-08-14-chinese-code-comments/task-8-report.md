@@ -16,3 +16,7 @@
 
 - 修正可信代理判断：只要求来源在可信 CIDR 且服务端配置断言 header，不要求 header 值匹配。
 - 修正 ingress、媒体和 settings 路由注释，明确 bootstrap 仅下发限制、媒体 URL 时效随进程内 secret、REST mutation 返回 405 而认证 WS 请求才进入 mutation 路由。
+
+## Fix round 2
+
+- 进一步精确可信代理注释：除来源在已配置可信 CIDR 外，请求还必须携带所配置断言 header 的非空值；不要求该值与预设密钥匹配。

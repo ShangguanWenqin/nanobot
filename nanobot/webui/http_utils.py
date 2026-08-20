@@ -17,7 +17,7 @@ from websockets.http11 import Response
 
 QueryParams = dict[str, list[str]]
 
-# 代理声明只在连接来源属于已配置 CIDR 且服务端已配置断言 header 时才可信，不能把客户端转发头直接当身份。
+# 代理声明只在连接来源属于已配置可信 CIDR，且请求携带所配置断言 header 的非空值时才可信，不能把客户端转发头直接当身份。
 _JSON_GZIP_MIN_BYTES = 4 * 1024
 _JSON_GZIP_LEVEL = 5
 
