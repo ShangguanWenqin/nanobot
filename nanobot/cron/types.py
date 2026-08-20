@@ -49,6 +49,7 @@ class CronSchedule:
 
 @dataclass
 class CronPayload:
+    # 新版 agent_turn 绑定 session 与 origin_*；旧 deliver/channel/to 字段仅供兼容迁移。
     """What to do when the job runs."""
     kind: Literal["system_event", "agent_turn"] = "agent_turn"
     message: str = ""
@@ -102,6 +103,7 @@ class CronRunRecord:
 
 @dataclass
 class CronJobState:
+    # 调度定义与运行状态分离，持久化后重启可重算 next_run 并保留有限审计记录。
     """Runtime state of a job."""
     next_run_at_ms: int | None = None
     last_run_at_ms: int | None = None
@@ -183,6 +185,7 @@ class CronJob:
 
 @dataclass
 class CronStore:
+    # cron/jobs.json 的根对象；CronService 是其读写与原子替换的唯一所有者。
     """Persistent store for cron jobs."""
     version: int = 1
     jobs: list[CronJob] = field(default_factory=list)

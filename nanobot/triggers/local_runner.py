@@ -29,6 +29,7 @@ async def run_local_trigger_queue(
     if submit_turn is None:
         raise ValueError("run_local_trigger_queue requires submit_turn")
     logger.info("Local trigger queue started")
+    # 启动先回收崩溃遗留的 processing 文件，使投递至少可重试而非永久卡住。
     recovered = store.recover_processing_deliveries()
     if recovered:
         logger.warning(
@@ -143,6 +144,7 @@ async def _deliver_delivery(
         raise _TerminalDeliveryError(f"target channel is not enabled: {trigger.channel}")
 
     store.write_delivery_run_record(delivery, trigger=trigger, status="processing")
+    # 本地触发也构造成普通入站 turn，才能共享会话锁、history 和统一 delivery。
     msg = InboundMessage(
         channel=trigger.channel,
         sender_id=trigger.sender_id,
@@ -191,6 +193,7 @@ def _write_delivery_run_record(
 
 
 def _delivery_metadata(trigger: LocalTrigger, delivery: TriggerDelivery) -> dict[str, Any]:
+    # 只携带触发器定义中的来源 metadata，并附加可审计 delivery 身份供隐藏历史投影使用。
     metadata = dict(trigger.origin_metadata or {})
     metadata[LOCAL_TRIGGER_META] = {
         "trigger_id": trigger.id,

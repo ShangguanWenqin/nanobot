@@ -282,6 +282,7 @@ class Session:
     """A conversation session."""
 
     key: str  # channel:chat_id
+    # Session 是可重放的单会话历史；跨会话长期归纳由 MemoryStore 单独拥有。
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -340,6 +341,7 @@ class Session:
         A positive ``max_messages`` applies an explicit caller-owned count
         limit. The normal model path relies on ``max_tokens`` instead.
         """
+        # 压缩游标不等于硬删除边界，保留合法尾部以支持工具配对和崩溃后的上下文恢复。
         replay_start = self.last_archived
         if replay_start:
             # ``last_archived`` is archive progress, not a replay boundary.
@@ -658,6 +660,7 @@ class JsonlSessionStore:
     def __init__(self, workspace: Path, *, sessions_root: Path | None = None):
         canonical_workspace = Path(workspace).expanduser().resolve(strict=False)
         ensure_dir(canonical_workspace)
+        # Session 文件必须位于 agent workspace 外，避免被项目工具或 Dream 工作树操作误改。
         root = (
             Path(sessions_root).expanduser().resolve(strict=False)
             if sessions_root is not None
@@ -694,6 +697,7 @@ class JsonlSessionStore:
     @contextmanager
     def locked_session_files(self) -> Generator[Path, None, None]:
         """Guard direct access to canonical session files in this directory."""
+        # 批量迁移、列举和删除共享目录锁，和单文件原子写一起防止并发读到中间状态。
         with self._session_files_lock:
             yield self.sessions_dir
 
@@ -711,6 +715,7 @@ class JsonlSessionStore:
 
     @classmethod
     def _write_text_atomic(cls, path: Path, content: str, *, mode: int = 0o600) -> None:
+        # 先 fsync 临时文件再 os.replace 并同步目录，断电后只会看到旧文件或完整新文件。
         tmp = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
         try:
             with open(tmp, "x", encoding="utf-8") as handle:
@@ -1143,6 +1148,7 @@ class JsonlSessionStore:
         return self.legacy_sessions_dir / f"{self.safe_key(key)}.jsonl"
 
     def load(self, key: str) -> Session | None:
+        # 读取在目录锁内完成，避免与迁移/替换交错；provider state 也随 JSONL 一并恢复。
         with self._session_files_lock:
             return self._load_unlocked(key)
 
@@ -1316,6 +1322,7 @@ class JsonlSessionStore:
         }
 
     def save(self, session: Session, *, fsync: bool = False) -> None:
+        # 同一目录锁包住完整快照的临时写入与 replace，读者不会观察到半份 JSONL。
         with self._session_files_lock:
             self._save_unlocked(session, fsync=fsync)
 
@@ -1854,6 +1861,7 @@ class SessionManager:
         Returns:
             The session.
         """
+        # 内存缓存只是加速层；未命中时必须从 JSONL 重新建立权威 Session。
         session = self._cached(key)
         if session is not None:
             return session
@@ -1958,6 +1966,7 @@ class SessionManager:
         sessions are logged but do not prevent other sessions from being
         flushed.
         """
+        # gateway 退出时显式 fsync 缓存，减少尚在内存中的最近 turn 因正常停机丢失。
         flushed = 0
         cached = dict(self._overflow_cache.items())
         cached.update(self._cache)

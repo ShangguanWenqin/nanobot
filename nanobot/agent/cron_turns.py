@@ -38,6 +38,7 @@ class CronTurnCoordinator(AutomationTurnCoordinator):
 
     def pending_job_ids_for_session(self, session_key: str) -> set[str]:
         """Return cron jobs that are waiting for or running in *session_key*."""
+        # 对外暴露的是待执行 job id；真正的消息仍保留在基类的会话隔离队列中。
         return self.pending_ids_for_session(session_key)
 
 
@@ -46,6 +47,7 @@ def _should_defer_cron_turn(
     session_key: str,
     active_session_keys: Iterable[str],
 ) -> bool:
+    # 绑定会话的 cron 必须等待该会话空闲，避免与用户 turn 竞争同一份 Session 状态。
     return defer_cron_until_session_idle(msg.metadata) and session_key in active_session_keys
 
 

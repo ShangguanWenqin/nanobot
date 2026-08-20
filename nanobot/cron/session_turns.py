@@ -25,6 +25,7 @@ def _cron_history_text(trigger: Mapping[str, Any]) -> str | None:
 
 
 CRON_AUTOMATION_SPEC = AutomationTurnSpec(
+    # 将瞬态 trigger metadata 投影为隐藏历史字段，保留审计信息而不伪装成用户发言。
     kind="cron",
     trigger_meta_key=CRON_TRIGGER_META,
     legacy_history_meta_key=CRON_HISTORY_META,
@@ -48,6 +49,7 @@ def is_cron_turn(metadata: Mapping[str, Any] | None) -> bool:
 
 
 def defer_cron_until_session_idle(metadata: Mapping[str, Any] | None) -> bool:
+    # 该标志只影响调度时机，不改变 cron turn 最终写入同一 Session 的所有权。
     return bool(
         is_cron_turn(metadata)
         and (metadata or {}).get(CRON_DEFER_UNTIL_IDLE_META) is True

@@ -36,6 +36,7 @@ class LocalTriggerTurnCoordinator(AutomationTurnCoordinator):
 
     def pending_trigger_ids_for_session(self, session_key: str) -> set[str]:
         """Return local triggers waiting for or running in *session_key*."""
+        # 返回目标 session 的待执行 trigger，方便状态面展示而不泄漏其他会话队列。
         return self.pending_ids_for_session(session_key)
 
 
@@ -44,6 +45,7 @@ def _should_defer_local_trigger_turn(
     session_key: str,
     active_session_keys: Iterable[str],
 ) -> bool:
+    # 本地事件必须等目标会话闲置，避免自动化输出打断当前用户对话。
     return local_trigger(msg.metadata) is not None and session_key in active_session_keys
 
 

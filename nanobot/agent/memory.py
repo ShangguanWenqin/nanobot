@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 
 
 class MemoryStore:
+    # Memory 是 agent workspace 的跨会话知识；Session JSONL 则是运行时会话记录，二者不互为副本。
     """Pure file I/O for memory files: MEMORY.md, history.jsonl, SOUL.md, USER.md."""
 
     _DEFAULT_MAX_HISTORY = 1000
@@ -296,6 +297,7 @@ class MemoryStore:
                 )
             raw = truncate_text(raw, limit)
         content = strip_think(raw)
+        # 追加记录和 cursor 分配必须同锁，Dream 才能按单调游标安全增量消费。
         # Cursor allocation and the append must be atomic: concurrent writers
         # could otherwise read the same current cursor and emit duplicates.
         with self._append_lock:
@@ -410,6 +412,7 @@ class MemoryStore:
         unified_session: bool = False,
     ) -> list[dict[str, Any]]:
         """Return unprocessed history entries safe to inject into a turn prompt."""
+        # 自动化与 Dream 内部记录不应作为用户对话事实重新喂给模型，避免历史污染。
         entries = self.read_unprocessed_history(since_cursor=since_cursor)
         if session_key is None:
             return entries
@@ -492,6 +495,7 @@ class MemoryStore:
             return None
 
     def _write_entries(self, entries: list[dict[str, Any]]) -> None:
+        # 压缩/迁移需要重写 JSONL：临时文件 fsync 后 replace，避免崩溃留下半截 history。
         """Overwrite history.jsonl with the given entries (atomic write)."""
         tmp_path = self.history_file.with_suffix(self.history_file.suffix + ".tmp")
         try:
@@ -722,6 +726,7 @@ class MemoryStore:
     ) -> None:
         """Fallback: dump raw messages to history.jsonl without LLM summarization."""
         limit = max_chars if max_chars is not None else _RAW_ARCHIVE_MAX_CHARS
+        # LLM 摘要失败时仍写入受限原文作为恢复痕迹，随后游标可安全前进。
         formatted = truncate_text(
             self._format_messages(public_history_messages(messages)),
             limit,
@@ -990,6 +995,7 @@ class Consolidator:
 
     def get_lock(self, session_key: str) -> asyncio.Lock:
         """Return the shared consolidation lock for one session."""
+        # 同一 session 的压缩可能来自 turn save 与 idle scan；共享锁避免重复归档同一前缀。
         return self._locks.setdefault(session_key, asyncio.Lock())
 
     def pick_consolidation_boundary(
@@ -1116,6 +1122,7 @@ class Consolidator:
 
         lock = self.get_lock(session.key)
         async with lock:
+            # AutoCompact 可使缓存引用失效；锁内重新取得权威 Session 以避免保存旧副本。
             # Refresh session reference: AutoCompact may have replaced it.
             fresh = self.sessions.get_or_create(session.key)
             if fresh is not session:
@@ -1179,6 +1186,7 @@ class Consolidator:
                     archive_end=end_idx,
                     runtime=runtime,
                 )
+                # 无论摘要或降级原文归档，游标都只标识已写入 Memory 的前缀，防止重复持久化。
                 # Advance the cursor either way: on success the chunk was
                 # summarized; on failure archive_session() raw-archived it as
                 # a breadcrumb. Re-archiving the same chunk on the next call
@@ -1248,6 +1256,7 @@ class Consolidator:
                     "last_active": last_active.isoformat(),
                 }
 
+            # provider 调用期间仍可能有新 turn 追加；只推进调用前捕获的批次，保留新消息供下次恢复。
             # A turn can append while the provider call is in flight. Advance only
             # through the captured batch so new messages remain eligible next time.
             session.last_archived = archive_end

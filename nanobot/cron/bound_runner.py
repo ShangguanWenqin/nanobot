@@ -46,6 +46,7 @@ def _bound_session_delivery_context(
     turn_seed: str,
     source_label: str | None,
 ) -> tuple[str, str, dict[str, Any]]:
+    # 交付路由取自创建任务时保存的来源，不能依赖后来可能变化的“最后活动 channel”。
     channel, chat_id, metadata = origin_delivery_context(job)
 
     if channel == "websocket":
@@ -85,6 +86,7 @@ async def run_bound_cron_job(
         turn_seed=f"cron:{job.id}",
         source_label=job.name,
     )
+    # cron 触发元数据既供本 turn 识别，也供保存历史时转成可审计的自动化标记。
     metadata[CRON_TRIGGER_META] = {
         "job_id": job.id,
         "job_name": job.name,
@@ -104,6 +106,7 @@ async def run_bound_cron_job(
         "rendered_prompt": prompt,
     }
 
+    # 先持久化 queued，再执行 AgentLoop，使崩溃恢复时不会把已接收任务误判为从未运行。
     cron.write_run_record(
         run_id,
         {
@@ -117,6 +120,7 @@ async def run_bound_cron_job(
     if isinstance(cron_tool, CronTool):
         cron_token = cron_tool.set_cron_context(True)
     try:
+        # 经 submit_cron_turn 回到普通会话生命周期，因而复用 per-session 串行、持久化和 delivery。
         resp = await agent.submit_cron_turn(
             InboundMessage(
                 channel=channel,

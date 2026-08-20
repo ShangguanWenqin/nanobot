@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import cast
 
+# Session.metadata 对 SDK 可见；内部模型选择使用保留命名空间，避免与调用者自定义数据冲突。
 # Session.metadata is public SDK data, so internal selectors use a reserved namespace.
 SESSION_MODEL_PRESET_METADATA_KEY = "_nanobot_model_preset"
 

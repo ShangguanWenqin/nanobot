@@ -23,6 +23,7 @@ async def publish_next_deferred_turn(
     queue = deferred_queues.get(session_key)
     if not queue:
         return False
+    # 同一 session 的自动化 turn 保持 FIFO，只有前一个 turn 收尾后才发布下一项。
     msg = queue.pop(0)
     if not queue:
         deferred_queues.pop(session_key, None)
@@ -55,6 +56,7 @@ class AutomationTurnCoordinator:
         self._missing_id_error = missing_id_error
         self._duplicate_id_error = duplicate_id_error
         self.deferred_queues = deferred_queues if deferred_queues is not None else {}
+        # coordinator 只拥有等待与去重状态，不把自动化输入混入正在运行的用户 turn。
         self._waiters: dict[str, asyncio.Future[OutboundMessage | None]] = {}
         self._pending_messages_by_turn_id: dict[str, InboundMessage] = {}
 
@@ -71,6 +73,7 @@ class AutomationTurnCoordinator:
         self._waiters[turn_id] = future
         self._pending_messages_by_turn_id[turn_id] = msg
         try:
+            # Gateway 运行时走总线；单次调用场景直接 dispatch，但都由同一 future 回传结果。
             if self._is_running():
                 await self._publish_inbound(msg)
             else:
@@ -103,6 +106,7 @@ class AutomationTurnCoordinator:
                 msg,
                 session_key_override=session_key,
             )
+        # 延迟队列按目标 session 隔离，防止一条定时任务穿插到另一会话的历史中。
         self.deferred_queues.setdefault(session_key, []).append(pending_msg)
         return True
 

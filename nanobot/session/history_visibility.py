@@ -18,5 +18,6 @@ def _has_hidden_history_marker(message: Mapping[str, Any] | None) -> bool:
 
 
 def is_hidden_history_message(message: Mapping[str, Any] | None) -> bool:
+    # 持久化不等于公开展示：自动化/内部记录可供审计，却不能伪装为聊天 turn。
     """True for persisted messages that should not be shown as chat turns."""
     return _has_hidden_history_marker(message) or is_automation_history_message(message)

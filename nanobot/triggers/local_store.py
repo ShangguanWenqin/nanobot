@@ -39,6 +39,7 @@ class TriggerDisabledError(TriggerStoreError):
 
 
 class LocalTriggerStore:
+    # 触发器定义、待投递文件与运行记录都由本 store 统一加锁和原子落盘。
     """Persistent local triggers for one workspace."""
 
     def __init__(self, workspace_path: Path):
@@ -201,6 +202,7 @@ class LocalTriggerStore:
 
     def claim_deliveries(self, *, limit: int = 20) -> list[TriggerDelivery]:
         """Move pending deliveries into processing and return them."""
+        # claim 将 pending 改为 processing；崩溃后 recover_processing_deliveries 会让其重新可投递。
         self._ensure_dirs()
         claimed: list[TriggerDelivery] = []
         with self._lock:
@@ -221,6 +223,7 @@ class LocalTriggerStore:
 
     def recover_processing_deliveries(self) -> int:
         """Requeue deliveries left in processing by an interrupted gateway."""
+        # processing 不是成功状态，进程重启时必须显式恢复为可重试队列。
         self._ensure_dirs()
         recovered = 0
         with self._lock:
@@ -409,6 +412,7 @@ class LocalTriggerStore:
 
     @staticmethod
     def _atomic_write(path: Path, content: str) -> None:
+        # 临时文件 + fsync + replace 让单个 JSON 状态文件不会以半写形式暴露给下次启动。
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         try:

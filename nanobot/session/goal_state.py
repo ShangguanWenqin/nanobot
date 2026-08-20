@@ -15,6 +15,7 @@ from nanobot.session.manager import SessionManager
 GOAL_STATE_KEY = "goal_state"
 GOAL_COMMAND = "/goal"
 MAX_GOAL_OBJECTIVE_CHARS = 4000
+# 旧 key 仅为读取兼容；写入方收敛到 GOAL_STATE_KEY，避免同一目标出现两份权威状态。
 # Older builds stored the same JSON blob under this key.
 _LEGACY_GOAL_STATE_SESSION_KEY = "thread_goal"
 _MAX_OBJECTIVE_WS = 600
@@ -59,10 +60,12 @@ def sustained_goal_turn(
     message_metadata: Mapping[str, Any] | None = None,
 ) -> bool:
     """True when this turn should use sustained-goal runtime limits."""
+    # 明确 /goal 可启动本 turn；已激活目标则允许后续内部 turn 延续工作。
     return sustained_goal_active(metadata) or explicit_goal_requested(message_metadata)
 
 
 def parse_goal_state(blob: Any) -> dict[str, Any] | None:
+    # session metadata 属于持久化边界，恢复时必须容忍旧版或损坏 JSON。
     if blob is None:
         return None
     if isinstance(blob, dict):
@@ -130,6 +133,7 @@ def runner_wall_llm_timeout_s(
     ``metadata`` when the caller already holds :attr:`~nanobot.session.manager.Session.metadata`
     for this turn.
     """
+    # 调用者已持有本 turn 的内存 metadata 时优先使用它，避免读盘旧快照覆盖刚更新的 Goal。
     meta: Mapping[str, Any] | None = metadata
     if meta is None and session_key:
         meta = sessions.get_or_create(session_key).metadata

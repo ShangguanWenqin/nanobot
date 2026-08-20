@@ -61,6 +61,7 @@ class AutoCompact:
         active_session_keys: Collection[str] = (),
     ) -> None:
         """Schedule archival for idle sessions, skipping those with in-flight agent tasks."""
+        # 空闲归档只扫描持久会话；活动 turn 仍由 AgentLoop 的会话锁负责串行化。
         now = datetime.now()
         for info in self.sessions.list_sessions():
             key = info.get("key", "")
@@ -84,6 +85,7 @@ class AutoCompact:
             self._archiving.discard(key)
             return
         try:
+            # Consolidator 写入长期 Memory，并只推进 Session 的归档游标，不删除可恢复尾部。
             summary = await self.consolidator.compact_idle_session(
                 key,
                 runtime=runtime,
@@ -110,10 +112,12 @@ class AutoCompact:
         if key in self._archiving or self._is_expired(session.updated_at):
             logger.info("Auto-compact: reloading session {} (archiving={})", key, key in self._archiving)
             session = self.sessions.get_or_create(key)
+        # 热路径缓存只跨当前进程；重启后的恢复必须以下方持久化 metadata 为准。
         # Hot path: summary from in-memory dict (process hasn't restarted).
         entry = self._summaries.pop(key, None)
         if entry:
             return session, entry
+        # 冷路径从会话 metadata 恢复摘要，避免进程崩溃后下一 turn 丢失压缩上下文。
         # Cold path: summary persisted in session metadata (process restarted).
         # Persisted metadata may outlive schema changes; a malformed summary must
         # not abort turn preparation.

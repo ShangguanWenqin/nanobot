@@ -226,6 +226,7 @@ class CronService:
             empty job list would cause the next ``_save_store`` to wipe every
             job from disk.
         """
+        # 解析失败不能降级为空任务表，否则后续保存会覆盖全部自动化定义。
         jobs: list[CronJob] = []
         version = 1
         if self.store_path.exists():
@@ -407,6 +408,7 @@ class CronService:
             ]
         }
 
+        # CronService 独占 jobs.json 的快照写入；运行记录则使用独立文件，避免相互覆盖。
         self._atomic_write(self.store_path, json.dumps(data, indent=2, ensure_ascii=False))
         self._store_dirty = False
 
@@ -544,6 +546,7 @@ class CronService:
                 if j.enabled and j.state.next_run_at_ms and now >= j.state.next_run_at_ms
             ]
 
+            # 执行时固定内存快照，避免 UI 轮询重载 store 后替换仍在更新状态的 job 对象。
             for job in due_jobs:
                 await self._execute_job(job)
 
@@ -597,6 +600,7 @@ class CronService:
         job.state.last_run_at_ms = start_ms
         job.updated_at_ms = end_ms
 
+        # 每次结果都写入有界运行历史，重启后仍能区分成功、跳过和失败。
         job.state.run_history.append(CronRunRecord(
             run_at_ms=start_ms,
             status=job.state.last_status,

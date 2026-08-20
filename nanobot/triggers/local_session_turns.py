@@ -27,6 +27,7 @@ def _local_trigger_history_text(trigger: Mapping[str, Any]) -> str:
 
 
 LOCAL_TRIGGER_AUTOMATION_SPEC = AutomationTurnSpec(
+    # local trigger 与 cron 共用自动化历史协议，防止控制 metadata 混入用户消息正文。
     kind="local_trigger",
     trigger_meta_key=LOCAL_TRIGGER_META,
     history_fields={
@@ -44,6 +45,7 @@ def local_trigger(metadata: Mapping[str, Any] | None) -> dict[str, Any] | None:
 
 
 def local_trigger_delivery_id(metadata: Mapping[str, Any] | None) -> str | None:
+    # delivery id 是一次投递的去重/运行记录关联键，不是长期会话身份。
     trigger = local_trigger(metadata)
     if not trigger:
         return None

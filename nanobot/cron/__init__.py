@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 __all__ = ["CronService", "CronJob", "CronSchedule"]
 
+# 延迟导入避免只读取 Cron 类型/协议时就创建调度服务的重依赖。
 _LAZY = {"CronService": ".service"}
 
 

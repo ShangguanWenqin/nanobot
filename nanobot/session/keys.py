@@ -6,6 +6,7 @@ from collections.abc import Mapping, MutableMapping
 from typing import Any
 
 UNIFIED_SESSION_KEY = "unified:default"
+# 统一会话仍用明确保留 key，避免将不同来源的 route 信息当成会话身份的一部分。
 LAST_CHANNEL_METADATA_KEY = "last_channel"
 
 
@@ -24,6 +25,7 @@ def remember_last_channel(
     """Persist the latest concrete delivery route in session metadata."""
     if not channel or not chat_id:
         return
+    # 路由是会话 metadata 的持久提示；自动化回送还须校验自己的 origin 绑定。
     metadata[LAST_CHANNEL_METADATA_KEY] = f"{channel}:{chat_id}"
 
 

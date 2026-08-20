@@ -61,6 +61,7 @@ def internal_continuation_run_started_at(metadata: Mapping[str, Any] | None) -> 
 
 def should_persist_user_message(metadata: Mapping[str, Any] | None) -> bool:
     """Return whether this inbound message should be persisted as user input."""
+    # 内部续跑不是新的用户输入；跳过持久化可避免同一目标提示反复污染公开 history。
     if metadata and metadata.get(SKIP_USER_PERSIST_META) is True:
         return False
     return not internal_continuation_inbound(metadata)
@@ -121,6 +122,7 @@ async def maybe_continue_turn(ctx: TurnContext) -> bool:
         run_started_at=ctx.visible_run_started_at,
     )
     content = _goal_continuation_prompt(ctx.session.metadata)
+    # 去除仅代表预算边界的合成 assistant 文本，下一 slice 才拥有最终可见回复。
     messages = _strip_terminal_assistant(ctx.all_messages, ctx.final_content)
     _increment_goal_continuation_round(ctx.session.metadata)
 
@@ -129,6 +131,7 @@ async def maybe_continue_turn(ctx: TurnContext) -> bool:
     ctx.final_content = ""
     ctx.all_messages = messages
     ctx.suppress_response = True
+    # continuation 作为同一 session 的后续入站排队，仍经 loop 的锁和保存边界处理。
     await ctx.pending_queue.put(
         dataclasses.replace(
             ctx.msg,
@@ -236,6 +239,7 @@ def _internal_continuation_metadata(
     metadata[INTERNAL_CONTINUATION_KIND_META] = _GOAL_CONTINUATION_KIND
     if run_started_at is not None:
         metadata[INTERNAL_CONTINUATION_RUN_STARTED_AT_META] = float(run_started_at)
+    # 不继承一次性命令/待处理标记，防止每次续跑重复申请目标或无限递归排队。
     for key in _STRIPPED_INBOUND_META_KEYS:
         metadata.pop(key, None)
     return metadata

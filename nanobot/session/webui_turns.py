@@ -66,6 +66,7 @@ TITLE_MAX_CHARS = 60
 TITLE_GENERATION_MAX_TOKENS = 96
 TITLE_GENERATION_REASONING_EFFORT = "none"
 
+# 每 chat 的最新活动 turn 仅是进程内投影；刷新浏览器可继续观察，进程重启则由持久 Session 重建。
 # Latest active turn projection per ``chat_id`` (websocket only). It survives browser refresh
 # while the gateway process stays up and is implicitly dropped on restart.
 _WEBSOCKET_TURN_WALL_STARTED_AT: dict[str, float] = {}
@@ -104,6 +105,7 @@ def _validated_llm_runtime(value: object) -> LLMRuntime | None:
 
 
 def _sync_websocket_turn_projection(chat_id: str) -> None:
+    # HTTP API 读取最新投影；完整 owner 队列仍保留并发生命周期，避免较早 turn 清理误删较晚 turn。
     turns = _WEBSOCKET_ACTIVE_TURNS.get(chat_id)
     if not turns:
         _WEBSOCKET_ACTIVE_TURNS.pop(chat_id, None)
@@ -123,6 +125,7 @@ def _sync_websocket_turn_projection(chat_id: str) -> None:
 
 
 def mark_webui_session(session: Session, metadata: dict[str, Any]) -> bool:
+    # webui 标记写入 Session metadata，供重连和标题生成等后续 turn 识别来源。
     """Persist a WebUI marker only when the inbound websocket frame opted in."""
     if metadata.get(WEBUI_SESSION_METADATA_KEY) is not True:
         return False

@@ -49,6 +49,7 @@ class TriggerRunRecord:
 
 @dataclass
 class LocalTrigger:
+    # 定义保存来源会话/路由；每次实际投递另由 TriggerDelivery 记录可恢复的处理状态。
     """A session-bound local trigger."""
 
     id: str
@@ -120,6 +121,7 @@ class LocalTrigger:
 
 @dataclass
 class TriggerDelivery:
+    # delivery 是磁盘队列项，attempts 与 path 仅服务重试/恢复，不属于触发器配置本身。
     """One pending local trigger delivery written by the CLI."""
 
     id: str

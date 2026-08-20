@@ -12,6 +12,7 @@ AUTOMATION_HISTORY_META = "_automation_turn"
 
 @dataclass(frozen=True)
 class AutomationTurnSpec:
+    # spec 将不同自动化来源统一投影到隐藏历史，不让各调度器各自拼装会话记录。
     """Source-specific wiring for one session-bound automation turn type."""
 
     kind: str
@@ -35,6 +36,7 @@ def automation_history_overrides_for_spec(
     spec: AutomationTurnSpec,
 ) -> tuple[str | None, dict[str, Any]]:
     """Return hidden session-history text/metadata overrides for *spec*."""
+    # 仅复制白名单字段；外部触发 metadata 不可原样进入长期会话历史。
     trigger = automation_trigger(metadata, spec)
     if not trigger:
         return None, {}
@@ -73,6 +75,7 @@ def automation_history_overrides(
 
 
 def is_automation_history_message(message: Mapping[str, Any] | None) -> bool:
+    # 该判定供 transcript/replay 共同使用，阻止自动化控制记录污染可见聊天历史。
     """True for hidden automation trigger records in session history."""
     if not message:
         return False

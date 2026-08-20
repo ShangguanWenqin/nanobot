@@ -16,6 +16,7 @@ def cron_proactive_delivery_metadata(
     source_label: str | None = None,
 ) -> dict[str, Any]:
     """Return channel metadata for a fresh proactive cron delivery turn."""
+    # 每次主动推送生成新 turn id，浏览器可将迟到事件与旧 turn 隔离。
     out = dict(metadata or {})
     out.pop(WEBUI_TURN_METADATA_KEY, None)
     if channel == "websocket":
