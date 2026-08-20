@@ -288,6 +288,7 @@ class MatrixConfig(Base):
     streaming: bool = False
 
 
+# Matrix sync 同时承载房间事件、端到端加密媒体和 typing；HTML 输出经过白名单净化后再随平台格式字段发送。
 class MatrixChannel(BaseChannel):
     """Matrix (Element) channel using long-polling sync."""
 

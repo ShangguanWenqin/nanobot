@@ -11,6 +11,7 @@ GROUP_POLICIES = frozenset({"mention", "open", "allowlist"})
 DIRECT_GROUP_POLICIES = frozenset({"mention", "open"})
 
 
+# manifest 只描述设置字段与策略集合；注册表读取它时不应触发平台 SDK 的运行时导入。
 def field(
     kind: FieldKind = "string",
     *,

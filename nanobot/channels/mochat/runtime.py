@@ -260,6 +260,7 @@ class MochatConfig(Base):
 # Channel
 # ---------------------------------------------------------------------------
 
+# MoChat 首选 Socket.IO，断开时可退回 HTTP 轮询；短时间的同目标入站会缓冲合并，再作为一条统一消息发布。
 class MochatChannel(BaseChannel):
     """Mochat channel using socket.io with fallback polling workers."""
 

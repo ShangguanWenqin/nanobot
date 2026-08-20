@@ -6,6 +6,7 @@ from nanobot.channels.contracts import ChannelValidationContext
 from nanobot.channels.validation import check, payload, required_checks, string_value
 
 
+# 轻量校验只检查保存的 app identity 形状，不发起 SDK 连接，连接/二维码状态由 connector 和 runtime 承担。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks, missing = required_checks("feishu", values)
     display_name = string_value(values.get("displayName") or values.get("name"))

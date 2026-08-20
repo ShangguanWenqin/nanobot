@@ -100,6 +100,7 @@ async def _validate_slack_download_request(request: httpx.Request) -> None:
         raise httpx.RequestError(f"unsafe Slack file URL: {error}", request=request)
 
 
+# Slack Socket Mode 负责入站，Web API 负责消息/文件/反应；线程上下文与流式编辑由适配器按 Slack 标识维护。
 class SlackChannel(BaseChannel):
     """Slack channel using Socket Mode."""
 

@@ -290,6 +290,7 @@ def _media_message(message: Any) -> _MediaInfo | None:
     return None
 
 
+# WhatsApp 的 neonize 数据库存身份会话；适配器归一化 JID/LID、下载媒体，并用回调维护自身消息以避免回声循环。
 class WhatsAppChannel(BaseChannel):
     """WhatsApp channel using neonize's async WhatsApp client."""
 

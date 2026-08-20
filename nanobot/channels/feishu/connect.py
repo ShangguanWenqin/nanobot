@@ -34,6 +34,7 @@ class FeishuConnectSession:
     last_error: str | None = None
 
 
+# 二维码会话只留在 gateway 内存且带单调时钟 deadline；浏览器只得到设备码状态，app secret 不会回传。
 class FeishuConnectStore:
     """In-memory Feishu/Lark QR connection state.
 
@@ -133,6 +134,7 @@ class FeishuConnectStore:
 
         status = result.get("status")
         if status == "succeeded":
+# completion lock 防止并发 poll/cancel 对同一个二维码会话重复写入或误报告成功。
             with self._completion_lock:
                 if self._sessions.get(session_id) is not session:
                     return {

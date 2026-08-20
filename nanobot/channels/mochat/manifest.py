@@ -4,6 +4,7 @@ from nanobot.channels._manifest import field, required
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# MoChat 使用 socket.io/msgpack，且 settings_visible=False，声明仍供运行时依赖检查和发现使用。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "baseUrl": field(default="https://mochat.io"),

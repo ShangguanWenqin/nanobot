@@ -5,6 +5,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 from nanobot.channels.telegram.validation import validate
 
+# Telegram 可选 proxy 随 token 一起声明，使校验能先解析环境引用而轮询生命周期仍由适配器拥有。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "token": field("secret"),

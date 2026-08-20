@@ -5,6 +5,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.discord.validation import validate
 from nanobot.channels.plugin import ChannelPlugin
 
+# Discord 的群聊响应策略与可允许频道属于适配器输入规则，token 保持 secret 且不进入 WebUI 快照。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "token": field("secret"),

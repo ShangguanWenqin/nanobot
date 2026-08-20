@@ -6,6 +6,7 @@ from nanobot.channels.contracts import ChannelValidationContext
 from nanobot.channels.validation import check, enabled, official_action, payload, string_value
 
 
+# WhatsApp 需要 CLI/QR 生成 neonize 本地状态；验证器据此给出配置状态，不把连接流程嵌入 WebUI 请求。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     if enabled(values) or string_value(values.get("databasePath")):

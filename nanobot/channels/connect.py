@@ -7,6 +7,7 @@ from collections.abc import Mapping
 QueryParams = Mapping[str, list[str]]
 
 
+# 连接流程将可展示的失败原因与 HTTP 状态一起上抛，HTTP/WS 网关不必了解各平台协议细节。
 class ChannelConnectError(Exception):
     """User-facing channel connection failure."""
 

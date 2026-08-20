@@ -53,6 +53,7 @@ class NapcatConfig(Base):
     max_image_bytes: int = Field(default=20 * 1024 * 1024, ge=1)
 
 
+# OneBot 帧以 echo 关联请求/响应，并把消息与 notice 分发为后台任务；断线会失败所有 pending action 后按退避重连。
 class NapcatChannel(BaseChannel):
     """Napcat / OneBot v11 channel."""
 

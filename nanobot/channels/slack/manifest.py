@@ -5,6 +5,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 from nanobot.channels.slack.validation import validate
 
+# Slack Socket Mode 同时需要 app 与 bot token；声明式验证只检查可配置性，真正连接由 runtime 建立。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "appToken": field("secret"),

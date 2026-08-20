@@ -5,6 +5,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.matrix.validation import validate
 from nanobot.channels.plugin import ChannelPlugin
 
+# Matrix 允许密码登录或 access token+device ID 两种完整凭据组，one_of 防止只保存半套恢复信息。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "homeserver": field(default="https://matrix.org"),

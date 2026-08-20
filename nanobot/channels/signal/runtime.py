@@ -351,6 +351,7 @@ class SignalConfig(Base):
         return list(dict.fromkeys(self.dm.allow_from + self.group.allow_from))
 
 
+# Signal 经 daemon JSON-RPC/SSE 收发；Markdown 样式偏移需按 UTF-16 切分，才能与 signal-cli 的 BodyRange 对齐。
 class SignalChannel(BaseChannel):
     """
     Signal channel using signal-cli daemon via HTTP JSON-RPC interface.

@@ -4,6 +4,7 @@ from nanobot.channels._manifest import field, required_fields
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# WeCom AI Bot 通过 botId/secret 建立 SDK 会话；媒体大小与帧事件限制留给 runtime 解释。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "botId": field(),

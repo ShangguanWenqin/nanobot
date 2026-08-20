@@ -6,6 +6,7 @@ from nanobot.channels.plugin import ChannelPlugin
 from nanobot.channels.whatsapp.state import local_state_present
 from nanobot.channels.whatsapp.validation import validate
 
+# WhatsApp 凭据由 neonize 数据库维护；管理层仅探测本地状态，不把数据库路径作为可写密钥表单。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "allowFrom": field("list", snapshot=False),

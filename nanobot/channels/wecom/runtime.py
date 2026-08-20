@@ -75,6 +75,7 @@ MSG_TYPE_MAP = {
 }
 
 
+# WeCom AI Bot 以 SDK 长连接接收多种 frame，保留每 chat 的原始 frame 才能把文本和上传媒体正确 reply 回去。
 class WecomChannel(BaseChannel):
     """
     WeCom (Enterprise WeChat) channel using WebSocket long connection.

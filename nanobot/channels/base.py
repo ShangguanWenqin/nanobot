@@ -18,6 +18,7 @@ from nanobot.pairing import (
 )
 
 
+# 所有平台仅在适配层处理各自协议；这里固定入站授权、消息归一化和总线发布这条公共边界。
 class BaseChannel(ABC):
     """
     Abstract base class for chat channel implementations.
@@ -48,6 +49,7 @@ class BaseChannel(ABC):
     async def transcribe_audio(self, file_path: str | Path) -> str:
         """Transcribe an audio file via Whisper (OpenAI or Groq). Returns empty string on failure."""
         try:
+# 音频转写按需导入，避免每个纯文本 channel 在启动时都加载提供方配置和依赖。
             from nanobot.audio.transcription import (
                 resolve_transcription_config,
                 transcribe_audio_file,
@@ -234,6 +236,7 @@ class BaseChannel(ABC):
         )
         return bool(streaming) and type(self).send_delta is not BaseChannel.send_delta
 
+# allowlist 的命中优先于 pairing；group 可传 authorization_id 改变授权主体，但 sender_id 仍保留为消息身份。
     def is_allowed(self, sender_id: str) -> bool:
         """Check sender permission: star > allowlist > pairing store > deny."""
         if isinstance(self.config, dict):
@@ -272,6 +275,7 @@ class BaseChannel(ABC):
         sender's identity.  When omitted, authorization remains sender-based.
         """
         permission_id = authorization_id if authorization_id is not None else sender_id
+# 未授权私聊只回配对码而不发布 InboundMessage；配对存储不可用时同样不放行，保持 fail-closed。
         if not self.is_allowed(permission_id):
             if is_dm:
                 try:
@@ -305,6 +309,7 @@ class BaseChannel(ABC):
 
         meta = metadata or {}
         if self.supports_streaming:
+# 此标记是 channel 对 AgentLoop 的能力声明，实际分段/编辑规则仍由各平台 send_delta 实现拥有。
             meta = {**meta, "_wants_stream": True}
 
         msg = InboundMessage(

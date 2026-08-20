@@ -4,6 +4,7 @@ from nanobot.channels._manifest import field, required
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# Signal 通过 signal-cli REST daemon 工作，私聊和群组 allowlist 分开以匹配其不同的地址空间。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "phoneNumber": field(),

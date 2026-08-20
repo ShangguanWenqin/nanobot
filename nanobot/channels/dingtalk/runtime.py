@@ -61,6 +61,7 @@ except ImportError:
 _CallbackHandlerBase = CallbackHandler
 
 
+# 钉钉 Stream 回调须快速 ACK；耗时的媒体下载和总线发布转入后台任务，避免服务端把同一事件重投。
 class NanobotDingTalkHandler(_CallbackHandlerBase):
     """
     Standard DingTalk Stream SDK Callback Handler.
@@ -230,6 +231,7 @@ class DingTalkChannel(BaseChannel):
     Group chat_id is stored with a "group:" prefix to route replies back.
     """
 
+# 入站来自 SDK WebSocket，出站则走 HTTP；远程媒体下载另受 URL 校验、重定向数和 20MB 上限约束。
     name = "dingtalk"
     display_name = "DingTalk"
     _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}

@@ -6,6 +6,7 @@ from nanobot.channels.contracts import ChannelValidationContext
 from nanobot.channels.validation import check, enabled, official_action, payload, string_value
 
 
+# 微信凭据由终端二维码流程生成；检查本地状态后只提示下一步，而不在浏览器发起登录网络请求。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     if enabled(values) or string_value(values.get("token")):

@@ -15,6 +15,7 @@ from nanobot.pairing.store import (
     revoke_channel,
 )
 
+# channel 和命令层用这两个 metadata 标记配对交互；它们只携带流程类型/代码，不改变入站授权的唯一判断位置。
 # Metadata keys used by channels and commands to tag pairing-related messages.
 PAIRING_CODE_META_KEY = "_pairing_code"
 PAIRING_COMMAND_META_KEY = "_pairing_command"

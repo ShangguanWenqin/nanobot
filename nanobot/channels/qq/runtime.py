@@ -193,6 +193,7 @@ class QQConfig(Base):
     download_max_bytes: int = 1024 * 1024 * 200  # 200MB safety limit
 
 
+# QQ botpy WebSocket 负责事件，富媒体需先上传且按 image/file 分类；网络错误采用每会话指数退避以免重连风暴。
 class QQChannel(BaseChannel):
     """QQ channel using botpy SDK with WebSocket connection."""
 

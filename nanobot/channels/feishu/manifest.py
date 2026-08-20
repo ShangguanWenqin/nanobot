@@ -6,6 +6,7 @@ from nanobot.channels.feishu.instances import FEISHU_MANAGEMENT
 from nanobot.channels.feishu.validation import validate
 from nanobot.channels.plugin import ChannelPlugin
 
+# 飞书的管理回调支持多个独立 app 实例；manifest 仍可在未安装 lark SDK 时被发现和编辑。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "appId": field(snapshot=False),

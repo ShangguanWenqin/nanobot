@@ -28,6 +28,7 @@ class WeixinConnectSession:
     last_error: str | None = None
 
 
+# QR 会话在内存中持有临时 HTTP client，成功前不会覆盖旧 token；失败/过期/取消统一关闭 client，防止凭据与连接泄漏。
 class WeixinConnectStore:
     """In-memory WeChat QR login sessions for the WebUI."""
 
@@ -129,6 +130,7 @@ class WeixinConnectStore:
         from nanobot.channels.weixin.runtime import MAX_QR_REFRESH_COUNT
 
         if status == "confirmed":
+# 仅确认响应携带 token 时才提交新账号，保证 force 重新登录不会破坏仍可用的既有绑定。
             if self._sessions.get(session_id) is not session:
                 return {
                     "session_id": session_id,

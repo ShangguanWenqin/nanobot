@@ -10,6 +10,7 @@ from nanobot.channels.contracts import channel_field_value
 from nanobot.config.paths import get_config_path
 
 
+# 管理面只检查 account.json 中是否存在 token，不读取或回传 token 本身，作为本地登录态的最小披露。
 def local_state_present(section: Any) -> bool:
     configured_dir = channel_field_value(section, "stateDir")
     state_dir = (

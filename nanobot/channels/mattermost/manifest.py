@@ -4,6 +4,7 @@ from nanobot.channels._manifest import GROUP_POLICIES, field, required_fields
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# Mattermost 将普通群聊与 thread 中的触发策略分别暴露，因为线程上下文由平台事件语义决定。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "serverUrl": field(),

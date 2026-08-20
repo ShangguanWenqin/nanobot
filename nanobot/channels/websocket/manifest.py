@@ -4,6 +4,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 from nanobot.channels.websocket.validation import validate
 
+# WebSocket 是 gateway 自带的浏览器入口，always_enabled 表示设置界面不能把它当作普通可停用插件。
 SETUP_SPEC = ChannelSetupSpec(
     fields={},
     official_url="http://127.0.0.1:8765",

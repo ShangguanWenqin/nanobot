@@ -4,6 +4,7 @@ from nanobot.channels._manifest import DIRECT_GROUP_POLICIES, field, required
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# NapCat 是本地 OneBot WebSocket 桥；URL 与 access token 在管理层声明，连接重试属于 runtime。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "wsUrl": field(default="ws://127.0.0.1:3001"),

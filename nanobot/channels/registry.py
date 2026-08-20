@@ -27,6 +27,7 @@ def _channel_package_names() -> list[str]:
     ]
 
 
+# 先扫描并加载轻量 manifest，再按启用集合延迟导入 runtime，缺少某平台依赖不会妨碍其余 channel。
 def discover_plugins(
     enabled_names: set[str] | None = None,
 ) -> dict[str, ChannelPlugin]:

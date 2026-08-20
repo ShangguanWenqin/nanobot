@@ -456,6 +456,7 @@ class TelegramConfig(Base):
         return self
 
 
+# Telegram 同时处理更新排序、媒体组聚合、群聊 mention 和 typing/reaction；长文本按其消息上限分段发送。
 class TelegramChannel(BaseChannel):
     """
     Telegram channel using long polling or webhook mode.

@@ -29,6 +29,7 @@ _CODE_LENGTH = 8  # e.g. ABCD-EFGH
 _TTL_DEFAULT_S = 600  # 10 minutes
 
 
+# 所有读改写在同一进程锁内串行；持久化最终交给原子写入工具，避免批准列表被半写文件替换。
 def _store_path() -> Path:
     return get_data_dir() / "pairing.json"
 
@@ -85,6 +86,7 @@ def _save(data: dict[str, Any]) -> None:
     _write_text_atomic(path, json.dumps(payload, indent=2, ensure_ascii=False))
 
 
+# 过期或结构异常的待配对项不能成为授权依据，清理在生成和审批前执行。
 def _gc_pending(data: dict[str, Any]) -> None:
     """Remove expired pending entries in-place."""
     now = time.time()
@@ -180,6 +182,7 @@ def is_approved(channel: str, sender_id: str) -> bool:
         try:
             data = _load()
         except OSError:
+# 授权存储暂不可读时宁可拒绝本次消息，不能把 I/O 故障降级成默认放行。
             # Fail closed for this check; the store itself stays untouched.
             return False
         approved: dict[str, set[str]] = data.get("approved", {})

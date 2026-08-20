@@ -288,6 +288,7 @@ _SEND_OPTIONS: ContextVar[_SendOptions | None] = ContextVar(
 )
 
 
+# 微信 iLink 使用二维码登录和 HTTP 长轮询；没有原生逐 token 输出，故先缓冲 delta 并按 context token/消息预算受控发送。
 class WeixinChannel(BaseChannel):
     """
     Personal WeChat channel using HTTP long-poll.

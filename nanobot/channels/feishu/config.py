@@ -7,6 +7,7 @@ from pydantic import Field
 from nanobot.config.schema import Base
 
 
+# 该模型是单个飞书实例的运行时形状；多实例外层结构由 instances.py 在不导入 SDK 的情况下归一化。
 class FeishuConfig(Base):
     """Feishu/Lark channel configuration using WebSocket long connection."""
 

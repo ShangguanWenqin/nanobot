@@ -15,6 +15,7 @@ from nanobot.channels.validation import (
 )
 
 
+# Slack 分别校验 Socket Mode app token 与 bot token；auth.test 只做身份探测，不会创建或修改 workspace 资源。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks, missing = required_checks("slack", values)
     app_token = string_value(values.get("appToken"))

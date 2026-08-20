@@ -80,6 +80,7 @@ class _ServerFeatures:
     uid_store: bool | None = None
 
 
+# 邮件没有实时事件：轮询线程提取正文/附件后回到 async 总线；发送端保留主题与 Message-ID 以维持回复链。
 class EmailChannel(BaseChannel):
     """
     Email channel.

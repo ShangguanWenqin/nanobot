@@ -6,6 +6,7 @@ from nanobot.channels.contracts import ChannelValidationContext
 from nanobot.channels.validation import check, enabled, official_action, payload
 
 
+# WebSocket 由 gateway 生命周期固定管理；此校验只向设置页说明可用性，不能替代握手 token/proxy 信任判断。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks = [
         check(

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 _CHANNEL_PACKAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 
 
+# 插件描述保持无平台 SDK 依赖；只有实例真正启用后才按 import string 解析 runtime 类。
 @dataclass(frozen=True)
 class ChannelPlugin:
     """Dependency-free manifest for one channel package.
@@ -137,6 +138,7 @@ def load_channel_package(name: str) -> ChannelPlugin | None:
     if not has_channel_package(name):
         return None
 
+# manifest 的 runtime/connector 必须仍在本包内，阻断配置把动态导入指向任意模块。
     module_name = f"nanobot.channels.{name}.manifest"
     module = importlib.import_module(module_name)
     plugin = getattr(module, "PLUGIN", None)

@@ -21,6 +21,7 @@ _TIMEOUT_SECONDS = 4.0
 _SUPPORTED_PROXY_SCHEMES = {"http", "https", "socks5", "socks5h"}
 
 
+# 先展开环境引用并验证代理 URL，再调用 getMe，避免把未解析的秘密或非法代理交给外部网络客户端。
 def _proxy_url_is_valid(proxy: str) -> bool:
     try:
         parsed = urlparse(proxy)

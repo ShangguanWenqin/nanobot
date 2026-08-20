@@ -6,6 +6,7 @@ from nanobot.channels.plugin import ChannelPlugin
 from nanobot.channels.weixin.state import local_state_present
 from nanobot.channels.weixin.validation import validate
 
+# 微信登录态落在本地 stateDir；streaming、进度和上下文预算字段对应其 iLink 长轮询/分段协议限制。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "token": field("secret"),

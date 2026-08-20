@@ -4,6 +4,7 @@ from nanobot.channels._manifest import field, required_fields
 from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.plugin import ChannelPlugin
 
+# QQ 的 markdown/plain 输出格式是平台展示能力，不改变总线中的统一文本消息契约。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "appId": field(),

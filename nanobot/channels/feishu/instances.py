@@ -113,6 +113,7 @@ def feishu_instance_specs(
     enabled_only: bool = False,
 ) -> list[ChannelInstanceSpec]:
     """Expand legacy or canonical Feishu config into runtime instance specs."""
+# 兼容扁平旧配置与 instances 列表；启用态下还排除相同 domain+appId，避免同一飞书应用被双重连接。
     raw_specs, inherited = _feishu_instance_inputs(section, defaults)
 
     specs: list[ChannelInstanceSpec] = []
@@ -246,6 +247,7 @@ def update_feishu_instance_preserving_shape(
     return upsert_feishu_instance(section, defaults, instance_id, values)
 
 
+# 这些回调可被注册表安全导入，提供多实例展开、更新和 runtime 命名，而网络生命周期仍在 FeishuChannel。
 FEISHU_MANAGEMENT = ChannelManagementSpec(
     multi_instance=True,
     default_config=feishu_default_config,

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from nanobot.channels.plugin import ChannelPlugin
 
 
+# 管理端通过这一层取得声明式契约，避免为展示设置而加载带可选依赖的 channel runtime。
 def channel_setup_spec(
     name: str,
     *,

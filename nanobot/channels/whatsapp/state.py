@@ -9,6 +9,7 @@ from nanobot.channels.contracts import channel_field_value
 from nanobot.config.loader import get_config_path
 
 
+# neonize 数据库只以存在且非空判断登录态，管理端不打开数据库内容也不暴露 WhatsApp 会话材料。
 def local_state_present(section: Any) -> bool:
     configured_path = channel_field_value(section, "databasePath")
     database_path = (

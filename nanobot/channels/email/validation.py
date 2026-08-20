@@ -14,6 +14,7 @@ from nanobot.channels.validation import (
 )
 
 
+# 邮件校验将 consent、字段完整性和 IMAP/SMTP 可达性分开报告；TCP 探测遵循宿主的本地服务访问策略。
 def validate(
     values: dict[str, Any],
     context: ChannelValidationContext,

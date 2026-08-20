@@ -104,6 +104,7 @@ class ConversationRef:
     updated_at: float | None = None
 
 
+# Teams 将同步 HTTP webhook 桥接进 asyncio；先验证 Bot Framework bearer token，再接收 activity 并持久化回复引用。
 class MSTeamsChannel(BaseChannel):
     """Microsoft Teams channel (DM-first MVP)."""
 

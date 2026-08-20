@@ -84,6 +84,7 @@ def _server_url_to_ws_url(server_url: str) -> str:
     return server_url + "/api/v4/websocket"
 
 
+# Mattermost 通过 WS 收事件、REST 发帖；流式内容编辑同一 post，并按 thread/root 元数据决定回复上下文。
 class MattermostChannel(BaseChannel):
     """Mattermost channel using WebSocket + REST API."""
 

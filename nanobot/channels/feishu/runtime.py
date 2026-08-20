@@ -936,6 +936,7 @@ class _FeishuStreamBuf:
     last_edit: float = 0.0
 
 
+# 飞书一实例一 app identity：接收事件、卡片流式更新和媒体上传均归该实例管理，thread/topic 元数据决定会话隔离。
 class FeishuChannel(BaseChannel):
     """
     Feishu/Lark channel using WebSocket long connection.

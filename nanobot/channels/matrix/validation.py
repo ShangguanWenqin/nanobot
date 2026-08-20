@@ -6,6 +6,7 @@ from nanobot.channels.contracts import ChannelValidationContext
 from nanobot.channels.validation import check, required_checks, status_from_checks, string_value
 
 
+# Matrix 在管理面只验证两套凭据组合是否完整，房间权限与加密设备的实际协商留到 channel 启动时。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks, missing = required_checks("matrix", values)
     password = string_value(values.get("password"))

@@ -15,6 +15,7 @@ from nanobot.channels.validation import (
 )
 
 
+# 设置页以 Discord /users/@me 验证 bot token，并仅在成功时生成邀请链接；失败不会改变已保存配置。
 def validate(values: dict[str, Any], _context: ChannelValidationContext) -> dict[str, Any]:
     checks, missing = required_checks("discord", values)
     token = string_value(values.get("token"))

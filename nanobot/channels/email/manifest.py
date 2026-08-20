@@ -5,6 +5,7 @@ from nanobot.channels.contracts import ChannelSetupSpec
 from nanobot.channels.email.validation import validate
 from nanobot.channels.plugin import ChannelPlugin
 
+# 邮件读取要求显式 consent，并分别声明 IMAP 收取与 SMTP 投递的凭据，运行时才执行网络探测。
 SETUP_SPEC = ChannelSetupSpec(
     fields={
         "consentGranted": field("bool", default=False),

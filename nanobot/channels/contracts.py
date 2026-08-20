@@ -59,6 +59,7 @@ __all__ = [
 _MISSING = object()
 
 
+# 启用态先在无 SDK 的配置层归一化；多实例只有任一子实例启用时才产生对应 runtime。
 @dataclass(frozen=True)
 class ChannelActivation:
     """Normalized enablement state used before a channel runtime is imported.
@@ -264,6 +265,7 @@ class ChannelManagementSpec:
             raise ValueError("multi-instance channel management requires update_instance_config")
 
 
+# 默认值由 manifest 与可选管理回调合并，因而 WebUI 可安全创建配置草稿而不启动网络客户端。
 def channel_default_config(plugin: ChannelPlugin) -> dict[str, Any]:
     from nanobot.config.loader import merge_missing_defaults
 
@@ -328,6 +330,7 @@ def channel_instance_specs(
     enabled_only: bool = True,
 ) -> list[ChannelInstanceSpec]:
     """Expand persisted config through the dependency-free management adapter."""
+# 管理回调可保持 Feishu 等平台自己的 instances 结构；这里仅验证 id 与最终 runtime 名称的一一对应。
     factory = plugin.management.instance_specs
     if factory is None:
         activation = ChannelActivation.from_config(section)
@@ -462,6 +465,7 @@ def channel_feature_instances(
     *,
     setup_spec: ChannelSetupSpec | None = None,
 ) -> list[dict[str, Any]] | None:
+# WebUI 展示值经此处脱敏：secret 只以“已配置”出现，不回填到浏览器的可编辑快照。
     factory = plugin.management.feature_instances
     overrides = (
         cast(object, factory(section, setup_spec=setup_spec))
