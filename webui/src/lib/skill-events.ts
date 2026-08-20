@@ -1,4 +1,4 @@
-// 技能变更事件让异步设置操作通知其它消费者；payload 是刷新提示而非独立缓存。
+// 技能变更事件将服务端 mutation 返回的技能快照传播给跨组件消费者，useSkills 可直接据此更新列表。
 import type { SkillsPayload } from "@/lib/types";
 
 export const SKILLS_CHANGED_EVENT = "nanobot:skills-changed";

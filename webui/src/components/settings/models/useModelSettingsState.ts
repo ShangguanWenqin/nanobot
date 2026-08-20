@@ -1,4 +1,4 @@
-// 模型设置 state 将初始快照与用户草稿分离，刷新时以版本/引用边界避免覆盖正在编辑的内容。
+// 此 hook 仅由初始快照初始化并暴露模型草稿与异步状态；后续 payload 的表单覆盖策略由 SettingsController.applyPayload 统一拥有。
 import { useRef, useState } from "react";
 
 import {

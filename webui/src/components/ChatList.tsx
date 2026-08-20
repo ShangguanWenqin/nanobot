@@ -1,4 +1,4 @@
-// 会话列表同时投影普通会话和工作台分组；折叠偏好仅存浏览器，本体仍以服务端会话为准。
+// 会话列表同时投影普通会话和工作台分组；工作台组折叠仅存 localStorage，普通分组的 collapsedGroups 由上层 sidebar 状态持久化。
 import {
   memo,
   useCallback,

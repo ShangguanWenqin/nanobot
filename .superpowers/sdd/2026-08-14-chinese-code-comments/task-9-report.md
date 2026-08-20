@@ -11,3 +11,10 @@
 - TypeScript/TSX 源码 diff：仅新增中文 `//` 注释，无内容行新增或删除。
 - `git diff --check`：通过。
 - 按任务要求，未运行测试、类型检查或构建。
+
+## Fix round 1
+
+- `ChatList` 注释明确区分：工作台分组折叠存于 localStorage，而普通会话分组的 `collapsedGroups` 由上层 sidebar 状态持久化。
+- `useModelSettingsState` 注释改为初始化/暴露草稿职责；后续 payload 覆盖策略的所有者为 `useSettingsController.applyPayload`。
+- `skill-events` 注释改为服务端 mutation 返回的技能快照跨组件传播，`useSkills` 直接用 payload 更新列表。
+- 本轮 TypeScript scanner（`skipTrivia`）3 / 3 等价；源码仅替换 3 行中文注释，`git diff --check` 通过；未运行测试、类型检查或构建。
