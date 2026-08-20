@@ -1,3 +1,4 @@
+// 代码语言归一化只服务高亮器选择，无法识别时保守回退，绝不影响消息代码围栏的原始内容。
 const LANGUAGE_ALIASES: Record<string, string> = {
   cjs: "javascript",
   dockerfile: "docker",

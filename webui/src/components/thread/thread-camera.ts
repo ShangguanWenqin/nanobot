@@ -1,3 +1,4 @@
+// 线程相机把滚动容器的位置抽象为可插值的镜头状态，便于在不同布局中保持同一阅读锚点。
 interface ThreadCameraMotionProfile {
   /**
    * Time constant for the ease-out chase. Smaller values react faster; the

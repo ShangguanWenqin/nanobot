@@ -1,3 +1,4 @@
+// Web 活动行从结构化工具事件提取可展示网址，保留来源信息但不主动发起网络请求。
 import { Globe2 } from "lucide-react";
 import { useMemo } from "react";
 

@@ -1,3 +1,4 @@
+// 这组提及标记只把已解析的 CLI 应用、MCP 预设和会话附件渲染成文本令牌，不负责提交或持久化。
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 

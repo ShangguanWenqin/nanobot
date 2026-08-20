@@ -1,3 +1,4 @@
+// 增删计数来自已投影的文件差异，只用于紧凑摘要，不负责重新计算补丁内容。
 import { cn } from "@/lib/utils";
 
 export function DiffPair({ added, deleted }: { added: number; deleted: number }) {

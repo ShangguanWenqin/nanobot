@@ -1,3 +1,4 @@
+// 用户消息渲染会保留引用上下文及技能标记的边界，避免把提交给模型的原始文本重新解释为服务端状态。
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 

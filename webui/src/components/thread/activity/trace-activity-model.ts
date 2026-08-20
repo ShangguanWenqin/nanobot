@@ -1,3 +1,4 @@
+// trace 模型按事件键和阶段排序，保证同一工具的开始、结束和错误在增量到达时收敛为一条活动。
 import type { GenericToolStatus } from "./generic-tool-model";
 import { safeActivityDetail, summarizeShellCommand } from "./activity-text";
 import { presentWebSearchAction } from "./web-search-model";

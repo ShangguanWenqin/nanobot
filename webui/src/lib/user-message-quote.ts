@@ -1,3 +1,4 @@
+// 用户引用格式在发送前编码、渲染前解析，确保追加的上下文与用户正文仍可在展示层区分。
 interface ParsedUserMessageQuote {
   quotedContext: string | null;
   content: string;

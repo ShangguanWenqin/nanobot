@@ -1,3 +1,4 @@
+// 文件预览可用性由线程容器注入并异步查询，Markdown 子节点只消费该能力而不自行假定文件仍存在。
 import { createContext, useContext, type ReactNode } from "react";
 
 export type FilePreviewAvailabilityResolver = (path: string) => Promise<boolean>;

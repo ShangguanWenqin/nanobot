@@ -1,3 +1,4 @@
+// 活动文本在展示前压缩与脱敏，避免把冗长命令输出或令牌样式字符串直接铺满时间线。
 export function redactActivityText(value: string): string {
   return value
     .replace(/(https?:\/\/)[^/@\s]+@/gi, "$1<redacted>@")

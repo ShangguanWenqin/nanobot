@@ -1,3 +1,4 @@
+// 事件投影按 turn、流和工具调用键合并增量，并在完成后清理占位符，防止重复或迟到事件污染新的回答段。
 import { toolTraceLinesFromEvents } from "@/lib/tool-traces";
 import type {
   ToolProgressEvent,

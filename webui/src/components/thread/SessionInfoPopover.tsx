@@ -1,3 +1,4 @@
+// 会话信息浮层展示已同步的摘要和运行元数据；它不以自身开关状态推断服务端会话是否活跃。
 import { useState } from "react";
 import {
   CalendarClock,

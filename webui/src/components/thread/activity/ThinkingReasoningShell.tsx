@@ -1,3 +1,4 @@
+// 思考容器只管理推理区域的视觉开合，最终完成时机仍由 turn_end 和运行状态决定。
 import { ChevronDown } from "lucide-react";
 import type { ReactNode, Ref } from "react";
 

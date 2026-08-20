@@ -1,3 +1,4 @@
+// 模型预设徽标处理触摸/鼠标手势与视觉过渡；实际模型切换仍通过父层的服务端 mutation 完成。
 import {
   useEffect,
   useLayoutEffect,

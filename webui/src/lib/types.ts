@@ -1,4 +1,5 @@
-type Role = "user" | "assistant" | "tool" | "system";
+// 该文件是 WebUI 与 Gateway 事件/快照的共享契约；前端本地字段用于投影和交互，不能替代服务端会话权威数据。
+export type Role = "user" | "assistant" | "tool" | "system";
 
 /** "trace" rows are intermediate agent breadcrumbs (tool-call hints,
  * progress pings) that should not be rendered as conversational replies. */

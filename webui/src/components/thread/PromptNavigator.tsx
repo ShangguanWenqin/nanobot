@@ -1,3 +1,4 @@
+// 提示导航从当前消息列表提取可跳转的用户输入，不参与线程加载或消息写入。
 import { useMemo, useState } from "react";
 import { ListTree, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";

@@ -1,3 +1,4 @@
+// 只接受可公开导航的 HTTP(S) 地址，活动卡片据此避免把任意工具字符串变成可点击链接。
 export function parsePublicHttpUrl(value: string): URL | null {
   try {
     const url = new URL(value);

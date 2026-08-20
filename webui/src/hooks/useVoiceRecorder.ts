@@ -1,3 +1,4 @@
+// 语音录制只持有浏览器 MediaRecorder 生命周期，完成后交给转写请求；本地音频预览不是已写入对话的附件。
 import {
   useCallback,
   useEffect,

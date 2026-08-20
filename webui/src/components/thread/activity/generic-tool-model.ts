@@ -1,3 +1,4 @@
+// 该模型为未知工具生成稳定的标题、状态和详情，以便事件乱序或重复到达时仍可合并显示。
 import { compactActivityPath, redactActivityText } from "./activity-text";
 
 export type GenericToolStatus = "running" | "done" | "error";

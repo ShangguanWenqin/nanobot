@@ -1,3 +1,4 @@
+// 斜杠命令文本只突出命令名和参数，命令是否被服务端接受由消息生命周期事件决定。
 import {
   INLINE_TOKEN_HIGHLIGHT_COLOR,
   InlineTokenHighlight,

@@ -1,3 +1,4 @@
+// 活动消息模型把 UIMessage 的 trace、文件编辑和结构化工具事件归一为渲染层可消费的条目。
 import {
   canonicalToolTrace,
   mergeToolProgressEvents,

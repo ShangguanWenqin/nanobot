@@ -1,3 +1,4 @@
+// 提示轨道维护线程内的本地浏览焦点，并将选择结果交给 composer 作为下一次发送的辅助上下文。
 import {
   Fragment,
   type RefObject,

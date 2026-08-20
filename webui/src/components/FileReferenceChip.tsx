@@ -1,3 +1,4 @@
+// 文件引用芯片仅识别并展示代理消息中的路径语义，是否能打开及其内容仍由预览服务裁决。
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import {

@@ -1,3 +1,4 @@
+// 推理行支持流式追加与折叠阅读；其内容是代理可见的 reasoning 事件投影，而不是独立消息源。
 import { useEffect, useRef, useState } from "react";
 import { Check, CircleDashed } from "lucide-react";
 import { useTranslation } from "react-i18next";

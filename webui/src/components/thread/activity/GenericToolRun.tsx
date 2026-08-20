@@ -1,3 +1,4 @@
+// 未专门适配的工具调用统一落到该行，按规范化事件状态展示其入参和结果摘要。
 import {
   AlertCircle,
   FileSearch,

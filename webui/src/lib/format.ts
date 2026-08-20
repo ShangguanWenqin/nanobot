@@ -1,3 +1,4 @@
+// 对话格式化函数处理时间、命令和显示文本，不承担会话状态转换或协议事件确认。
 import i18n, { currentLocale } from "@/i18n";
 
 /** Compact token counts for dense runtime metadata (for example, 74.9K). */

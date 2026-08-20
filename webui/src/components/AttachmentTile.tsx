@@ -1,3 +1,4 @@
+// 对话附件在这里按媒体类型选择可交互缩略图或下载入口，预览失败不改变消息本身的交付状态。
 import { useState, type ReactNode } from "react";
 import { FileIcon, ImageIcon, PlaySquare } from "lucide-react";
 import { useTranslation } from "react-i18next";

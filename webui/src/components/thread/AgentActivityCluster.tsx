@@ -1,3 +1,4 @@
+// 活动簇把同一 turn 的工具、文件编辑和推理痕迹聚合为可折叠时间线；聚合只服务展示，不重写原始事件。
 import {
   Fragment,
   useCallback,

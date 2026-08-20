@@ -1,3 +1,4 @@
+// 临时聊天的摘要仅用于当前连接内的本地导航；它不应在重连时作为持久 chat 自动 attach。
 import type { ChatSummary } from "./types";
 
 const WEBSOCKET_SESSION_KEY_PREFIX = "websocket:";

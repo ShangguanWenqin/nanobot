@@ -1,3 +1,4 @@
+// 流式 hook 将单 chat 的 WS 事件投影为乐观消息和活动段；turn_end/canonical 刷新负责收尾，避免迟到帧重开旧 turn。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 

@@ -1,3 +1,4 @@
+// 工具 trace 以规范化调用行和阶段键去重合并，使不同事件形态能稳定映射为同一活动记录。
 import type { ToolProgressEvent } from "@/lib/types";
 
 export function formatToolCallTrace(call: unknown): string | null {

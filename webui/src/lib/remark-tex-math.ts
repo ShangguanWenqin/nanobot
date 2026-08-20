@@ -1,3 +1,4 @@
+// 数学语法扩展在 Markdown 解析阶段识别受保护的分隔符，避免普通金额或转义文本被误投影为 KaTeX。
 import type { Root } from "mdast";
 import type { Code, Construct, Effects, Extension, State, Token } from "micromark-util-types";
 import type { Plugin } from "unified";

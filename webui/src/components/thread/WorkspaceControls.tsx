@@ -1,3 +1,4 @@
+// 工作区控件编辑的是下一次 turn 的访问范围；提交后仍以服务端返回的 scope 快照为准。
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, ChevronDown, Folder, Hand } from "lucide-react";
 import { useTranslation } from "react-i18next";

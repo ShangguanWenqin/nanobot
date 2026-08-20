@@ -1,3 +1,4 @@
+// 线程标题栏只编排当前聊天的导航与展示控制，标题和运行信息来自外层已同步的会话摘要。
 import { Menu, MessageCircleDashed, Moon, Sun } from "lucide-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";

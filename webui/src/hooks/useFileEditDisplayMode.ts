@@ -1,3 +1,4 @@
+// 文件编辑展示模式是用户本地偏好，只决定活动卡片呈现方式，不影响工具执行或差异数据。
 import { useEffect, useState } from "react";
 
 import {

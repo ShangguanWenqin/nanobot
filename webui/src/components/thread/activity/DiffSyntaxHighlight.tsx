@@ -1,3 +1,4 @@
+// 差异语法高亮按需加载，加载失败时保留纯文本补丁以保证活动记录仍可阅读。
 import { Suspense, lazy, type ReactNode } from "react";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 

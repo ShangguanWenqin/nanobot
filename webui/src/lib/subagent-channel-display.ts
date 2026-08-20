@@ -1,3 +1,4 @@
+// 子代理通道消息在主线程中被脱敏和限长后展示，防止内部宣布内容挤占正常对话时间线。
 import type { UIMessage } from "@/lib/types";
 
 /** Match websocket/session scrub: keep header + Result body only; trim model tail. */

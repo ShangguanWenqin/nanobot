@@ -1,3 +1,4 @@
+// 文件编辑行把同一工具调用的阶段、路径和差异合并展示；展开的预览不意味着文件已被再次读取或持久化。
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,

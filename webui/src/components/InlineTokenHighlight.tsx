@@ -1,3 +1,4 @@
+// 行内高亮是消息文本的纯表现层，用于让命令、提及等已解析令牌在同一段落中可辨识。
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";

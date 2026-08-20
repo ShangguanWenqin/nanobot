@@ -1,3 +1,4 @@
+// CLI 应用变更通过浏览器事件广播给订阅者，payload 是 mutation 返回的快照而非客户端自行拼装的列表。
 import type { CliAppInfo, CliAppsPayload } from "@/lib/types";
 
 export const CLI_APPS_CHANGED_EVENT = "nanobot:cli-apps-changed";

@@ -1,3 +1,4 @@
+// 兼容投影只修补旧 transcript 的展示缺口，保持原消息顺序与内容，不把兼容结果写回会话。
 import { isModelCommandResponseText, isModelCommandText } from "@/lib/format";
 import { isSystemCommandTurnId } from "@/lib/nanobot-client";
 import { scrubSubagentUiMessages } from "@/lib/subagent-channel-display";

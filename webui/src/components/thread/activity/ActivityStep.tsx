@@ -1,3 +1,4 @@
+// 活动步骤是工具时间线的通用外框，状态颜色和展开行为仅表示前端已收到的进度快照。
 import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 

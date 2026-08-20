@@ -1,3 +1,4 @@
+// 文件差异解析把补丁转换为展示模型；解析失败时调用方仍可退回原始文本而不伪造编辑结果。
 import { parsePatch } from "diff";
 
 import type { UIFileDiff } from "@/lib/types";

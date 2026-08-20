@@ -1,3 +1,4 @@
+// 斜杠命令解析仅指导输入建议和副通道判断，真正的命令执行与生命周期由服务端协议决定。
 import type { SlashCommand } from "@/lib/types";
 
 type ResolvedSlashCommandLifecycle =

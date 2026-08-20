@@ -1,3 +1,4 @@
+// ANSI 解析器仅把终端颜色控制序列转换为安全样式片段，原始输出文本仍由消息模型保存。
 export type AnsiSegment = {
   text: string;
   style?: AnsiStyle;

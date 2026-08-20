@@ -1,3 +1,4 @@
+// 预览面板以服务端文件快照为准，并用请求序号隔离快速切换路径时迟到的读取结果。
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";

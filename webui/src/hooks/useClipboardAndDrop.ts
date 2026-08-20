@@ -1,3 +1,4 @@
+// 剪贴板和拖放输入先归一成 File 列表，再交由附件 hook 校验和编码，避免 DOM 事件细节泄漏进 composer。
 import { useCallback, useRef, useState } from "react";
 
 import { acceptedAttachmentKind } from "@/hooks/useAttachedImages";

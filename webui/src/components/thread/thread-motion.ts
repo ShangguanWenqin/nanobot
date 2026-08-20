@@ -1,3 +1,4 @@
+// 滚动动画按帧计算并可取消，所有运动值都是浏览器瞬时状态，不能替代消息时间线或服务端进度。
 import type {
   ThreadCameraController,
   ThreadCameraFollowResult,

@@ -1,3 +1,4 @@
+// 浏览器只创建一个复用多 chat 的客户端：请求以 request/turn id 关联，断线重连后仅重新 attach 已知持久会话，generation 与完成围栏拒绝迟到事件覆盖 canonical 状态。
 import type {
   ConnectionStatus,
   InboundEvent,

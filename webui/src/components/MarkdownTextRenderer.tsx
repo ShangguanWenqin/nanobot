@@ -1,3 +1,4 @@
+// 此渲染层只允许受控的 Markdown/内联 HTML 子集，并把文件、会话和媒体链接投影为受限的对话组件。
 import {
   Children,
   isValidElement,

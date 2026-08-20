@@ -1,3 +1,4 @@
+// 搜索运行项按工具进度展示查询和失败摘要，结果的权威内容仍在代理输出与服务端工具记录中。
 import { AlertCircle, Search } from "lucide-react";
 
 import { ActivityStep } from "@/components/thread/activity/ActivityStep";

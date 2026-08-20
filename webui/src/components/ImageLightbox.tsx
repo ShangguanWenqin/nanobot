@@ -1,3 +1,4 @@
+// 图片灯箱在消息已有媒体集合内导航，键盘与触摸操作只改变本地查看位置。
 import { useCallback, useEffect, useMemo } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";

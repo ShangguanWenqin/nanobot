@@ -1,3 +1,4 @@
+// 搜索模型从工具 trace 与结构化事件补全查询、结果和错误，优先保留可对账的调用标识。
 import { canonicalToolTrace, formatToolCallTrace } from "@/lib/tool-traces";
 import type { ToolProgressEvent } from "@/lib/types";
 

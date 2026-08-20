@@ -1,3 +1,4 @@
+// MCP 活动模型把调用名和参数投影成安全摘要，不把 UI 的格式化结果回写为 MCP 调用状态。
 import { safeActivityDetail } from "./activity-text";
 import { formatCompactWebUrl, parseSafeActivityHttpUrl } from "./web-url";
 

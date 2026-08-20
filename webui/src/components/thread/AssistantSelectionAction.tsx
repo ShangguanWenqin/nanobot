@@ -1,3 +1,4 @@
+// 助手文本选区被截断并定位为一次本地引用操作，防止超长 DOM 选区直接成为下一轮输入。
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { MessageCircleMore } from "lucide-react";

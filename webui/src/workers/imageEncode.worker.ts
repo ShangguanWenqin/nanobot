@@ -1,3 +1,4 @@
+// 图片 worker 在独立线程做 MIME 探测、缩放和压缩，向主线程返回可发送的数据或可展示的失败原因。
 /**
  * Off-main-thread image encoder.
  *

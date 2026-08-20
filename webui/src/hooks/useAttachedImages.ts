@@ -1,3 +1,4 @@
+// 附件 hook 管理本地文件、编码任务与预览 URL；移除或替换时释放浏览器资源，但不判定服务端附件是否已接受。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { encodeImage, type EncodeFailure } from "@/lib/imageEncode";

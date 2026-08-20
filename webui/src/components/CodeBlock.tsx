@@ -1,3 +1,4 @@
+// Markdown 代码围栏按语言延迟加载高亮器；ANSI 输出走文本样式分段，避免把代理输出当作可执行内容。
 import { Suspense, lazy, useCallback, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";

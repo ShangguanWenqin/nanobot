@@ -1,3 +1,4 @@
+// 主线程仅负责向编码 worker 分派和关联请求；图像压缩、MIME 探测与超限结果均在 worker 中产生。
 /**
  * Main-thread client for the image encoder Worker.
  *

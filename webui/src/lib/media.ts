@@ -1,3 +1,4 @@
+// 媒体辅助函数从 URL 和 MIME 推断展示类型，推断失败保持文件语义，不能据此确认远端媒体可访问。
 import type { UIMediaAttachment, UIMediaKind } from "@/lib/types";
 
 const IMAGE_EXTENSIONS = new Set([

@@ -1,3 +1,4 @@
+// Markdown 渲染器按需加载并用错误边界隔离单条消息的渲染故障，流式文本仍可继续由上层更新。
 import {
   Component,
   Suspense,

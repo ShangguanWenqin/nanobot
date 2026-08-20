@@ -1,3 +1,4 @@
+// 消息列表把相邻消息、活动簇和 turn 边界组织为稳定显示单元，避免流式追加时破坏既有列表键。
 import { memo, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageBubble } from "@/components/MessageBubble";

@@ -1,3 +1,4 @@
+// 消息气泡根据角色、turn 阶段与媒体附件组合展示；它消费投影后的 UIMessage，不能把本地样式状态当成会话事实。
 import {
   useCallback,
   useEffect,

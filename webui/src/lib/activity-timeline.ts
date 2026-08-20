@@ -1,3 +1,4 @@
+// 时间线工具按 turn 与活动段将消息切片，渲染组件据此避免把相邻 turn 的工具记录错误合并。
 import type { UIMessage } from "@/lib/types";
 
 /** A turn is projected into ordered answer messages and collapsible activity

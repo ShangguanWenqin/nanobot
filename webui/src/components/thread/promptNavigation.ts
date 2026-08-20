@@ -1,3 +1,4 @@
+// 提示导航索引仅基于当前已加载的 UIMessage 序列，翻页或 canonical 刷新后由调用方重新生成。
 import type { UIMessage } from "@/lib/types";
 
 export interface PromptAnchor {

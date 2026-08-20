@@ -1,3 +1,4 @@
+// 线程外壳负责订阅当前 chat、触发 canonical transcript 刷新并协调局部 UI；WS 事件只是刷新信号而非权威历史。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";

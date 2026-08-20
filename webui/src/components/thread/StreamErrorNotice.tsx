@@ -1,3 +1,4 @@
+// 流错误提示仅暴露已分类的传输或拒绝原因，关闭提示不会确认、重放或撤销对应服务端 turn。
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
