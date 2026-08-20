@@ -1,3 +1,4 @@
+// Provider 表单把后端注册表能力映射为输入项；OAuth 和远端模型列表均通过异步状态收敛。
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,

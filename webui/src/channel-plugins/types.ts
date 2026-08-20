@@ -1,3 +1,4 @@
+// 这些类型是渠道插件与设置页之间的边界，插件不能直接拥有宿主会话或连接状态。
 import type { ComponentType } from "react";
 
 import type { ChannelPresentation } from "@/components/settings/channels/catalog";

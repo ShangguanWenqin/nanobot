@@ -1,3 +1,4 @@
+// 页面可见性是轮询节流信号，不是连接或会话生命周期的权威状态。
 import { useEffect, useState } from "react";
 
 function pageIsVisible(): boolean {

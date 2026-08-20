@@ -1,3 +1,4 @@
+// 搜索只在已加载的会话摘要中导航，避免把键盘交互变成额外的服务端查询通道。
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";

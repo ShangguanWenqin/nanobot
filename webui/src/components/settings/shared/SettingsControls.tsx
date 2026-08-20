@@ -1,3 +1,4 @@
+// 通用设置控件只表达提交、错误和重启提示，不保存任何业务配置副本。
 import type { ReactNode } from "react";
 import { CircleAlert, Loader2, RotateCcw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";

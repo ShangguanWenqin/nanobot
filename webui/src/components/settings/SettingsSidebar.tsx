@@ -1,3 +1,4 @@
+// 设置侧栏仅选择逻辑分区；路由同步由父层负责，从而保留浏览器前进后退语义。
 import { useRef } from "react";
 import {
   Activity,

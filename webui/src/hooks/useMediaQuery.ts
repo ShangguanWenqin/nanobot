@@ -1,3 +1,4 @@
+// 媒体查询在浏览器外使用 fallback，并在订阅变化时清理监听器以保持 SSR/测试安全。
 import { useEffect, useState } from "react";
 
 export function useMediaQuery(query: string, fallback = false): boolean {

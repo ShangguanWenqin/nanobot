@@ -1,3 +1,4 @@
+// 设置页面负责壳层导航与加载态，具体设置读写统一经 SettingsController 注入。
 import { ChevronLeft, Loader2 } from "lucide-react";
 
 import { SkillsCatalogSettings } from "@/components/settings/SkillsCatalogSettings";

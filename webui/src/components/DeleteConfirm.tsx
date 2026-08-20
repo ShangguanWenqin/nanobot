@@ -1,3 +1,4 @@
+// 删除确认把会话与自动化关联后果显式展示，真正的删除仍由上层 mutation 完成。
 import {
   AlertDialog,
   AlertDialogAction,

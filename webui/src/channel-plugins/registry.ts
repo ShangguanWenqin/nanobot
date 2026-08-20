@@ -1,3 +1,4 @@
+// 注册表把可选渠道 UI 限定在贡献声明内，Shell 只读取稳定的展示与所有者元数据。
 import type {
   ChannelUiContribution,
   RegisteredChannelUiContribution,

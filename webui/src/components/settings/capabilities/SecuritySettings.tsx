@@ -1,3 +1,4 @@
+// 安全选项将展示值规整为服务端契约，不能由 UI 推断真实运行时授权边界。
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 

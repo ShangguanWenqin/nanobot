@@ -1,3 +1,4 @@
+// 此视图按当前分区组装共享 controller，避免各设置面板各自维护互相冲突的快照。
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import type { SettingsSectionKey } from "@/components/settings/contracts";
 import { useSettingsController } from "@/components/settings/useSettingsController";

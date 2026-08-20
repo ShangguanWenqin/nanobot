@@ -1,3 +1,4 @@
+// API 层区分读取与 mutation 超时，并把 HTTP 与 WebSocket mutation 归一为同一调用契约。
 import type {
   ApiServicePayload,
   AutomationsPayload,

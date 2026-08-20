@@ -1,3 +1,4 @@
+// 优先使用现代剪贴板 API，权限或运行环境不支持时退回临时 textarea；失败只返回结果不抛出 UI 细节。
 export async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {

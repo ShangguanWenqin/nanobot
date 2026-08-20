@@ -1,3 +1,4 @@
+// App Shell 在此集中处理 bootstrap 鉴权、单一客户端所有权与 hash 路由，再把会话状态下发给各视图。
 import {
   lazy,
   Suspense,

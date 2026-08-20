@@ -1,3 +1,4 @@
+// Logo 回退缓存按候选 URL 组共享失败信息，避免同一损坏图片在列表中反复请求。
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const loadedLogoUrls = new Set<string>();

@@ -1,3 +1,4 @@
+// 共用模型控件按 provider 能力延迟请求模型列表，并用查询条件隔离旧请求的返回结果。
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,

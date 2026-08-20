@@ -1,3 +1,4 @@
+// 该 hook 把服务端初始快照拆为表单草稿，草稿本身不代表已生效配置。
 import { useState } from "react";
 
 import {

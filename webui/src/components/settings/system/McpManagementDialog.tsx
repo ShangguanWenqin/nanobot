@@ -1,3 +1,4 @@
+// MCP 对话框用服务端状态协调连接、工具和 OAuth；关闭弹窗不应中断已提交的后端变更。
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Check,

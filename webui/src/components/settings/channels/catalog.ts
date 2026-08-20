@@ -1,3 +1,4 @@
+// 目录只定义渠道设置的展示元数据；实际字段与校验始终以 gateway 返回的契约为准。
 import type { LucideIcon } from "lucide-react";
 
 export type ChannelPresentation = {

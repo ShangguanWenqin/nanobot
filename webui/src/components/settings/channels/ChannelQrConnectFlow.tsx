@@ -1,3 +1,4 @@
+// 二维码连接轮询由连接 id 约束，组件卸载或取消后必须停止本地轮询。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import { Check, Loader2, Network, RotateCcw } from "lucide-react";

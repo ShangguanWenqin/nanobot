@@ -1,3 +1,4 @@
+// 概览页组合只读运行信息与外观偏好；本地外观更改不应伪装成 gateway 配置写入。
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   ArrowUpCircle,

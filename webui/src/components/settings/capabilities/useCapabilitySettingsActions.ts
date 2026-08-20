@@ -1,3 +1,4 @@
+// 能力动作集中提交 mutation、错误与重新加载，使各面板共享同一份设置数据流。
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { TFunction } from "i18next";
 

@@ -1,3 +1,4 @@
+// 市场搜索与趋势数据可短暂陈旧，安装结果仍以服务端重新获取的目录为权威。
 import { useEffect, useMemo, useState } from "react";
 import {
   Check,

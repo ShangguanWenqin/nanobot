@@ -1,3 +1,4 @@
+// SettingsController 是设置数据流的唯一协调点：加载权威快照、提交 mutation、再以刷新结果收敛。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 

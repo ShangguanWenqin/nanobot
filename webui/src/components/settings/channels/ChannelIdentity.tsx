@@ -1,3 +1,4 @@
+// 渠道标识与状态标签由 feature payload 和插件贡献共同解析，避免名称规则散落在设置面板。
 import { useMemo, type ReactNode } from "react";
 import type { useTranslation } from "react-i18next";
 

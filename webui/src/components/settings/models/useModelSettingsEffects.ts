@@ -1,3 +1,4 @@
+// OAuth 轮询只在待完成状态运行，并在状态改变或卸载时清理，防止迟到结果覆盖新表单。
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 
 import type { ApplySettingsPayload } from "@/components/settings/contracts";

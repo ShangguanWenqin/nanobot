@@ -1,3 +1,4 @@
+// 入口先完成 i18n 资源初始化，再挂载 App，防止首屏在语言资源尚未就绪时产生不稳定文案。
 import ReactDOM from "react-dom/client";
 
 import App from "./App";

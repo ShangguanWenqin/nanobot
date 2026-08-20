@@ -1,3 +1,4 @@
+// 渠道页把目录筛选和详情导航留在浏览器，将安装、启停和配置交给 gateway 的统一动作。
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";

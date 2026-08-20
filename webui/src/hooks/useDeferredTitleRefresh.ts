@@ -1,3 +1,4 @@
+// 自动标题可能晚于 turn 完成；有限重试只刷新尚无生成标题的会话，避免持续轮询。
 import { useCallback, useEffect, useRef } from "react";
 
 import type { ChatSummary } from "@/lib/types";

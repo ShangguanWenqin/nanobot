@@ -1,3 +1,4 @@
+// 系统状态把远端快照与 UI 瞬态（加载、错误、弹窗）分开，避免刷新抹去交互上下文。
 import { useRef, useState } from "react";
 
 import type {

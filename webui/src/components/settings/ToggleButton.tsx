@@ -1,3 +1,4 @@
+// 设置开关是受控呈现组件，提交时机由所属设置动作决定。
 import { cn } from "@/lib/utils";
 
 export function ToggleButton({

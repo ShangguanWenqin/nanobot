@@ -1,3 +1,4 @@
+// 会话拖拽只传递专用 MIME 中的会话键；读取端仍需验证其是否属于当前可见数据集。
 export const SESSION_DRAG_TYPE = "application/x-nanobot-session-key";
 
 let activeSessionKey: string | null = null;

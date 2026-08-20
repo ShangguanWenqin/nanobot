@@ -1,3 +1,4 @@
+// 纯浏览器偏好与服务端 settings 分离；变更通过自定义事件通知同页其他消费者。
 export type LocalDensity = "comfortable" | "compact";
 export type LocalActivityMode = "auto" | "expanded";
 export type FileEditDisplayMode = "summary" | "diff" | "collapsed_diff";

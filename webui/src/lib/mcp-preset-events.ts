@@ -1,3 +1,4 @@
+// MCP 预设事件携带已规整 payload，订阅者刷新呈现而不把事件本身当作持久化来源。
 import type { McpPresetInfo, McpPresetsPayload } from "@/lib/types";
 
 export const MCP_PRESETS_CHANGED_EVENT = "nanobot:mcp-presets-changed";

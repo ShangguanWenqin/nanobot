@@ -1,3 +1,4 @@
+// 布局几何只由 pane 顺序、布局种类和比例推导，渲染层不得私自修改这些不变量。
 import type { CSSProperties } from "react";
 
 import type { WorkbenchLayout } from "@/components/workbench/workbench-model";

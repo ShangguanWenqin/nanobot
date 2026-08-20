@@ -1,3 +1,4 @@
+// 主题偏好只保存在浏览器并同步根元素；Provider 让所有壳层组件读取同一个即时值。
 import {
   createContext,
   createElement,

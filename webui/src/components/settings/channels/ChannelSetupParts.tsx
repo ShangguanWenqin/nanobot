@@ -1,3 +1,4 @@
+// 这些片段只渲染服务端校验与目录定义，避免客户端自行判定渠道是否已配置。
 import { useMemo, useState, type ReactNode } from "react";
 import { Clipboard, ExternalLink, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";

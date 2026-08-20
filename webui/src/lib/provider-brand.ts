@@ -1,3 +1,4 @@
+// Provider 品牌信息是展示层的容错映射；图标 URL 依次回退但不参与 provider 选择。
 export interface ProviderBrand {
   logoUrl: string;
   logoUrls: string[];

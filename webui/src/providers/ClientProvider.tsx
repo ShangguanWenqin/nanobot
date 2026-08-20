@@ -1,3 +1,4 @@
+// 全树共享唯一 NanobotClient；token 用 ref 暴露给异步调用，避免闭包持有刷新前的凭据。
 import {
   createContext,
   useCallback,

@@ -1,3 +1,4 @@
+// 多实例渠道以服务端实例 id 为稳定身份；局部展开状态不能改变实际启停状态。
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";

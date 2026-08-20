@@ -1,3 +1,4 @@
+// 渠道设置面板按插件能力延迟加载；通用保存/校验仍复用受控的 settings mutation。
 import {
   Suspense,
   useEffect,

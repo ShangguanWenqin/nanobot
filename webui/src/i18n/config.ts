@@ -1,3 +1,4 @@
+// locale 配置负责把存储值、浏览器偏好与受支持语言规整为一个可安全初始化的选择。
 export const LOCALE_STORAGE_KEY = "nanobot.locale";
 
 export const supportedLocales = [

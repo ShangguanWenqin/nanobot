@@ -1,3 +1,4 @@
+// 模型动作统一串联保存、OAuth 与错误提示，避免每个子面板绕过同一份刷新协议。
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { TFunction } from "i18next";
 

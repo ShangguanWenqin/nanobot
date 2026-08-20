@@ -1,3 +1,4 @@
+// 凭据表单按字段语义构造提交值，并刻意不把受掩码的服务端秘密还原到本地状态。
 import type { ReactNode } from "react";
 import { Check, CircleAlert, Eye, EyeOff, X } from "lucide-react";
 import { useTranslation } from "react-i18next";

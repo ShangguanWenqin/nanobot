@@ -1,3 +1,4 @@
+// 会话分组是纯派生视图，排序和折叠规则不能改写服务端摘要或工作台归属。
 import { deriveTitle } from "@/lib/format";
 import type { ChatSummary, SidebarSortMode } from "@/lib/types";
 import { normalizeWorkspacePath, projectNameFromPath, sameWorkspacePath } from "@/lib/workspace";

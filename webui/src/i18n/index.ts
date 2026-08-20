@@ -1,3 +1,4 @@
+// i18n 先加载公共资源再合并渠道命名空间；切换语言同时更新持久化值和 document 语义。
 import i18n, { type InitOptions } from "i18next";
 import { initReactI18next } from "react-i18next";
 

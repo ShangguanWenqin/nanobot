@@ -1,3 +1,4 @@
+// 模型页编辑的是可撤销草稿；保存后由权威 settings payload 决定当前模型与预设顺序。
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   ChevronDown,

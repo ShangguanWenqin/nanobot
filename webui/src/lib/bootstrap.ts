@@ -1,3 +1,4 @@
+// bootstrap secret 可一次性从 URL 消费或从本地读取，换取短期 WS token 后立即脱离地址栏。
 import type { BootstrapResponse } from "./types";
 import { fetchWithTimeout } from "./http";
 

@@ -1,3 +1,4 @@
+// 系统副作用在面板存活期间轮询短暂的运行状态，并在依赖变化时撤销旧轮询。
 import { useCallback, useEffect } from "react";
 
 import type { SettingsSectionKey } from "@/components/settings/contracts";

@@ -1,3 +1,4 @@
+// 会话 hook 用 WS 事件获得低延迟投影，再用 HTTP transcript 合并为可恢复的权威历史。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "@/providers/ClientProvider";

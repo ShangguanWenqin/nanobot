@@ -1,3 +1,4 @@
+// 侧栏是 Shell 路由和会话命令的入口；快捷键遵从平台差异且不绕过上层状态转换。
 import {
   type ReactNode,
   type RefObject,

@@ -1,3 +1,4 @@
+// workspace 辅助函数仅规整并比较浏览器中的 scope 表示；实际访问授权仍由服务端解析。
 import type { WorkspaceAccessMode, WorkspaceScopePayload } from "@/lib/types";
 
 export function scopeWithAccessMode(

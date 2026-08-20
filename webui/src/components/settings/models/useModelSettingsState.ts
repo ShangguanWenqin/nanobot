@@ -1,3 +1,4 @@
+// 模型设置 state 将初始快照与用户草稿分离，刷新时以版本/引用边界避免覆盖正在编辑的内容。
 import { useRef, useState } from "react";
 
 import {

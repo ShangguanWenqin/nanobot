@@ -1,3 +1,4 @@
+// fetch 包装统一注入可取消的超时，使读取和 mutation 调用不会无限悬挂。
 const DEFAULT_HTTP_TIMEOUT_MS = 20_000;
 
 export async function fetchWithTimeout(

@@ -1,3 +1,4 @@
+// 系统动作在单处桥接 HTTP/WS mutation 与刷新事件，保留可能已成功但连接重载的结果语义。
 import type { Dispatch, SetStateAction } from "react";
 import type { TFunction } from "i18next";
 

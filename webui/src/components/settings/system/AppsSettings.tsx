@@ -1,3 +1,4 @@
+// 应用设置消费服务端清单与运行状态；安装或运行等副作用由 action 返回的新快照确认。
 import {
   forwardRef,
   useId,

@@ -1,3 +1,4 @@
+// 侧栏状态兼容并规整服务端持久化值；缺失会话会被裁剪，防止旧浏览器偏好复活。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useClient } from "@/providers/ClientProvider";

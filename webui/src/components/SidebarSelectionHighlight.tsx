@@ -1,3 +1,4 @@
+// 选择高亮只统一可访问性与视觉语义，不拥有列表的选中判定。
 import {
   type HTMLAttributes,
   type RefObject,

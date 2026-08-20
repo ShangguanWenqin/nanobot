@@ -1,3 +1,4 @@
+// 会话自动化仅在面板打开时定时刷新，并用 request 顺序避免旧响应覆盖新会话。
 import { useEffect, useRef, useState } from "react";
 
 import { usePageVisibility } from "@/hooks/usePageVisibility";

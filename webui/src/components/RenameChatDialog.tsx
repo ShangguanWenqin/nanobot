@@ -1,3 +1,4 @@
+// 重命名草稿是弹窗局部状态；确认后的权威标题由会话刷新回流。
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 

@@ -1,3 +1,4 @@
+// 工作台模型将持久化数据规整为有限 pane、唯一键和有效比例，兼容旧偏好而不信任其形状。
 import type {
   WorkbenchLayout,
   WorkbenchState,

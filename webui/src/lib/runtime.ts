@@ -1,3 +1,4 @@
+// Runtime 适配将浏览器、桌面宿主和受限 loopback 桥接成同一能力面，令 App 不依赖宿主实现细节。
 import type { RuntimeCapabilities, RuntimeSurface } from "./types";
 
 export interface RuntimeHost {

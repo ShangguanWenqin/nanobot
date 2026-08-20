@@ -1,3 +1,4 @@
+// 技能列表监听跨组件更新事件后重新加载，使设置 mutation 与 Shell 消费者保持一致。
 import { useEffect, useState } from "react";
 
 import { fetchSkills } from "@/lib/api";

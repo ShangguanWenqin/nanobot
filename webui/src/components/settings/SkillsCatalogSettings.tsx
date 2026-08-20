@@ -1,3 +1,4 @@
+// 技能目录展示服务端可用性和详情；启停后通过技能刷新事件收敛为最新快照。
 import { useEffect, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import {

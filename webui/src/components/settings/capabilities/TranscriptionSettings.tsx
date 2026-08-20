@@ -1,3 +1,4 @@
+// 转写配置沿用草稿—提交—权威刷新流程，避免秘密字段被浏览器状态错误保留。
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 

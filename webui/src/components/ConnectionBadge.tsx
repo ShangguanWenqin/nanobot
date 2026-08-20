@@ -1,3 +1,4 @@
+// 连接徽章订阅客户端连接生命周期，只呈现状态而不发起重连或改变会话。
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 

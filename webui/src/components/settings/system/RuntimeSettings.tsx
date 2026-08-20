@@ -1,3 +1,4 @@
+// Runtime 设置呈现 API 服务状态；启动、停止和重启请求均需等待服务端确认。
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Loader2, PauseCircle, PlayCircle, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";

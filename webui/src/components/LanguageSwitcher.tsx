@@ -1,3 +1,4 @@
+// 语言切换委托 i18n 初始化层持久化并同步 document 属性，组件不直接读写 locale 存储。
 import { Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 

@@ -1,3 +1,4 @@
+// 技能变更事件让异步设置操作通知其它消费者；payload 是刷新提示而非独立缓存。
 import type { SkillsPayload } from "@/lib/types";
 
 export const SKILLS_CHANGED_EVENT = "nanobot:skills-changed";

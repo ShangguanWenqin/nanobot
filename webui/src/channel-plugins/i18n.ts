@@ -1,3 +1,4 @@
+// Channel 插件通过命名空间拼接共享翻译器，避免宿主对各渠道字段文案产生硬编码依赖。
 import type { TFunction } from "i18next";
 
 type ChannelFieldMessages = {

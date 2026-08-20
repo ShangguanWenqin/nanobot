@@ -1,3 +1,4 @@
+// 图片能力表单只维护可编辑草稿；保存后的能力快照与重启要求由 controller 回填。
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 

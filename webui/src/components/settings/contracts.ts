@@ -1,3 +1,4 @@
+// 设置契约将“保存成功但需重启”的运行时边界显式传递给 Shell。
 import type { SettingsPayload } from "@/lib/types";
 
 export type SettingsSectionKey =

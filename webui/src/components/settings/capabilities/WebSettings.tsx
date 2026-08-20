@@ -1,3 +1,4 @@
+// Web 搜索表单根据服务端提供的 provider 能力决定密钥要求，不在前端复制后端校验。
 import type { Dispatch, SetStateAction } from "react";
 import { Eye, EyeOff, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";

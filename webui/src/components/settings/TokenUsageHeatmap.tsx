@@ -1,3 +1,4 @@
+// 热力图把服务端按日用量投影到本地时区，未来日期和零用量保持可区分。
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
