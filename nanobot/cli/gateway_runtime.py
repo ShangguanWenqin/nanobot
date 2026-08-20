@@ -338,6 +338,7 @@ async def _close_gateway_runtime(
             await runtime_tasks
 
 
+# Gateway 组合根在此装配共享服务；各部件经注入协作，但不因此转移自身资源的关闭责任。
 def _run_gateway(
     config: Config,
     *,
@@ -1005,6 +1006,7 @@ def _run_gateway(
                 # Do not report a successful gateway command when startup
                 # failed before any runtime task or listener was created.
                 raise typer.Exit(1)
+        # 退出时先阻断新工作并取消任务，再关闭运行时资源，最后持久化会话，保持与构造相反的依赖顺序。
         finally:
             try:
                 if shutdown_task and not shutdown_task.done():
